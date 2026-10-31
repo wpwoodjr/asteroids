@@ -1090,6 +1090,15 @@
       }
 
       setupTouchControls() {
+        // Left mouse click on the playfield fires one shot (mouse only, so touch
+        // taps on the playfield don't fire)
+        this.canvas.addEventListener('pointerdown', (e) => {
+          if (e.pointerType !== 'mouse' || e.button !== 0) return;
+          e.preventDefault();
+          this.sound.ensureActive();
+          if (this.state === 'PLAYING') this.fireBullet();
+        });
+
         const bindTouch = (id, onDown, onUp) => {
           const el = document.getElementById(id);
           if (!el) return;

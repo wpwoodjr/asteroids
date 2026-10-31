@@ -43,6 +43,7 @@ The installed app opens fullscreen and works offline once you've loaded it onlin
 | `D` / `→` | Rotate right |
 | `W` / `↑` | Thrust |
 | `Space` / `J` | Fire (max 4 shots on screen) |
+| Left click (on the playfield) | Fire |
 | `S` / `↓` / `Shift` | Hyperspace (random teleport) |
 | `P` / `Esc` | Pause / resume |
 | `R` | Restart (when paused or after game over) |
@@ -82,6 +83,18 @@ The game itself lives in `asteroids.html`. `manifest.webmanifest`, `sw.js` (the 
 - **`AsteroidsGame`** runs the game. It owns the state machine (`START`, `PLAYING`, `PAUSED`, `GAMEOVER`), entity updates, collisions, rendering and input.
 - The game simulates a fixed **1000 × 750** logical world and scales it onto the canvas. Each frame's time step is capped at 100 ms, so physics doesn't jump after the tab was in the background.
 - Physics uses frame-time-based velocity integration with screen wrap-around. Gravity is an inverse-square pull with a minimum-distance clamp, scaled for each entity type.
+
+## Tests
+
+The `tests/` folder has automated checks for gameplay, physics, mouse input, saved settings, the Fullscreen button, and PWA install and offline support. The runner serves the game locally and drives headless Chromium:
+
+```sh
+node tests/run.mjs                 # all tests (Node 22+)
+node tests/run.mjs physics mouse   # selected tests
+node --experimental-websocket tests/run.mjs   # Node 20/21
+```
+
+It needs `python3` and Chromium. Set `CHROME=/path/to/chrome` if Chromium isn't on your `PATH` as `chromium`. The runner exits with a nonzero code if any check fails.
 
 ## License
 

@@ -240,7 +240,7 @@
             <div class="border-t border-neutral-800 pt-2">
               <h4 class="font-bold text-white mb-1">PRO SURVIVAL TIPS</h4>
               <p class="text-neutral-400 text-[11px] leading-relaxed">
-                • Authentic Zero-G Inertia: Space has zero friction! Your ship coasts indefinitely until you rotate 180° and apply counter-thrust to brake.<br>
+                • Arcade Inertia: Your ship keeps drifting after you let go of thrust and only slowly coasts to a stop (no friction in Gravity Mode). To brake fast, rotate 180° and counter-thrust.<br>
                 • Gravity Mode [G]: cycles through OFF, LOW, MED, and HIGH gravity wells. Slingshot around the planet, and shoot asteroids before they fall in: each one it swallows costs you its points!<br>
                 • Hyperspace is a risky escape: you teleport randomly across space.<br>
                 • Small saucers are deadly accurate: destroy them before they line up a shot!<br>
@@ -1227,7 +1227,10 @@
           angle: -Math.PI / 2,
           radius: 12,
           invulnerable: 3.0,
-          deadTimer: 0
+          deadTimer: 0,
+          turnDir: 0,
+          turnHold: 0,
+          thrustHold: 0
         };
       }
 
@@ -1548,14 +1551,37 @@
               this.spawnShip();
             }
           } else {
+            // Rotation eases in from 30% to full speed over 0.12 s so taps give fine
+            // aiming nudges; it still stops instantly on release (no spin momentum)
             const rotSpeed = 4.2;
-            if (this.keys.left) this.ship.angle -= rotSpeed * dt;
-            if (this.keys.right) this.ship.angle += rotSpeed * dt;
+            const turnDir = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
+            if (turnDir !== this.ship.turnDir) {
+              this.ship.turnDir = turnDir;
+              this.ship.turnHold = 0;
+            }
+            if (turnDir !== 0) {
+              this.ship.turnHold += dt;
+              const ease = Math.min(1, 0.3 + 0.7 * this.ship.turnHold / 0.12);
+              this.ship.angle += turnDir * rotSpeed * ease * dt;
+            }
 
             if (this.keys.thrust) {
-              const accel = 350;
+              // Engine power eases in from 30% to full over 0.15 s
+              this.ship.thrustHold += dt;
+              const ease = Math.min(1, 0.3 + 0.7 * this.ship.thrustHold / 0.15);
+              const accel = 350 * ease;
               this.ship.vx += Math.cos(this.ship.angle) * accel * dt;
               this.ship.vy += Math.sin(this.ship.angle) * accel * dt;
+            } else {
+              this.ship.thrustHold = 0;
+              // Friction while coasting, matching the 1979 arcade code: it removes 1/128
+              // of the velocity every other frame, about 21% per second (~3 s half-life).
+              // Off in gravity mode so orbits and slingshots don't decay into the planet.
+              if (!this.gravityMode) {
+                const drag = Math.pow(0.79, dt);
+                this.ship.vx *= drag;
+                this.ship.vy *= drag;
+              }
             }
 
             // Gravitational pull from central planet

@@ -67,7 +67,7 @@ You earn an extra ship every 10,000 points. Each wave adds one more large astero
 
 ## Features
 
-- **Zero-G inertia:** the ship keeps moving until you turn around and thrust the other way. Top speed is capped.
+- **Arcade inertia:** the ship keeps drifting after you let go of thrust and slowly coasts to a stop, losing about a fifth of its speed each second, like the 1979 arcade original. To stop faster, turn around and thrust the other way. In gravity mode there is no friction, so orbits around the planet don't decay. Top speed is capped. Turning and thrust both ease in briefly, so quick taps give fine adjustments.
 - **Gravity mode:** a planet in the center pulls on the ship, asteroids, saucers and bullets. A saucer that crashes into it is destroyed with no change to your score, but an asteroid that falls in is swallowed and costs you its point value. Touching the planet costs a ship unless you are still shielded after respawning.
 - **Arcade audio:** all sounds are generated live with the Web Audio API: laser, explosions, thrust rumble, saucer siren, hyperspace, and a heartbeat that speeds up as fewer asteroids remain.
 - **Hall of fame:** the top 5 scores and the all-time high score are saved in the browser's `localStorage`. You can clear them from the Scores screen.

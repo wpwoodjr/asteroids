@@ -1,4 +1,6 @@
-# Vector Rocks
+# Asteroids
+
+**▶ [Play it in your browser](https://wpwoodjr.github.io/asteroids/)**
 
 A vector-style space shooter that runs in the browser from a single HTML file. It has no build step and no dependencies to install.
 

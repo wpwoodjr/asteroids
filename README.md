@@ -25,6 +25,16 @@ python3 -m http.server 8000
 
 An internet connection is needed on first load for Tailwind CSS (CDN) and the Google Fonts *Press Start 2P* and *Share Tech Mono*.
 
+### Install as an app
+
+The game is a Progressive Web App (PWA). From the [live site](https://wpwoodjr.github.io/asteroids/), you can install it:
+
+- **Android (Chrome):** menu ⋮ → **Install app** / **Add to Home screen**
+- **iPhone/iPad (Safari):** Share → **Add to Home Screen**
+- **Desktop Chrome/Edge:** the install icon in the address bar
+
+The installed app opens fullscreen and works offline once you've loaded it online one time. The offline support only works over `http(s)`, not when you open the file directly.
+
 ## Controls
 
 | Key | Action |
@@ -39,7 +49,7 @@ An internet connection is needed on first load for Tailwind CSS (CDN) and the Go
 | `G` | Cycle gravity: Off → Low → Med → High |
 | `C` | Cycle color theme (White, Emerald, Cyan, Amber) |
 | `M` | Mute / unmute |
-| `F` | Fullscreen |
+| `F` | Fullscreen (hidden when the installed app is already fullscreen, or on iPhone) |
 
 On touch devices, use the on-screen buttons below the playfield to rotate, thrust, fire, warp and pause.
 
@@ -62,10 +72,11 @@ You earn an extra ship every 10,000 points. Each wave adds one more large astero
 - **Arcade audio:** all sounds are generated live with the Web Audio API: laser, explosions, thrust rumble, saucer siren, hyperspace, and a heartbeat that speeds up as fewer asteroids remain.
 - **Hall of fame:** the top 5 scores and the all-time high score are saved in the browser's `localStorage`. You can clear them from the Scores screen.
 - **Display options:** 4 vector color themes, a CRT scanline and vignette overlay, and fullscreen. The playfield always scales to 4:3 and adjusts for high-DPI screens.
+- **Saved settings:** your color theme, CRT overlay, sound on/off and gravity level are saved in `localStorage`, so they stay the same the next time you play.
 
 ## How it works
 
-Everything lives in `asteroids.html`:
+The game itself lives in `asteroids.html`. `manifest.webmanifest`, `sw.js` (the service worker that caches files for offline play) and `icons/` make it installable. `index.html` redirects to the game.
 
 - **`SoundEngine`** wraps the Web Audio API. It uses oscillators and noise buffers, so there are no audio files.
 - **`AsteroidsGame`** runs the game. It owns the state machine (`START`, `PLAYING`, `PAUSED`, `GAMEOVER`), entity updates, collisions, rendering and input.

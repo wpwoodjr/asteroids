@@ -4,6 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Asteroids - Arcade Vector Space Shooter</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#050508">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Asteroids">
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,7 +45,8 @@
       pointer-events: none;
     }
     .crt-vignette {
-      background: radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.85) 100%);
+      /* Kept light at the edges so the HUD in the corners stays readable */
+      background: radial-gradient(ellipse at center, transparent 80%, rgba(0,0,0,0.6) 100%);
       pointer-events: none;
     }
     .vector-glow {
@@ -225,7 +234,7 @@
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">M</span> : Mute Audio</li>
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">C</span> : Color Theme</li>
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">G</span> : Gravity Mode</li>
-                <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">F</span> : Fullscreen</li>
+                <li id="help-fullscreen-key"><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">F</span> : Fullscreen</li>
               </ul>
             </div>
             <div class="border-t border-neutral-800 pt-2">
@@ -633,6 +642,21 @@
       } catch (e) {}
     }
 
+    // --- Settings Persistence (theme, CRT, mute, gravity) ---
+    function loadSettings() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem('asteroids_settings'));
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch (e) {}
+      return {};
+    }
+
+    function saveSettings(settings) {
+      try {
+        localStorage.setItem('asteroids_settings', JSON.stringify(settings));
+      } catch (e) {}
+    }
+
     // --- Main Game Engine ---
     class AsteroidsGame {
       constructor() {
@@ -692,6 +716,7 @@
         this.canHyperspace = true;
 
         this.initDOM();
+        this.applySavedSettings();
         this.resize();
         window.addEventListener('resize', () => this.resize());
         this.setupKeyboard();
@@ -724,7 +749,13 @@
         if (btnFullscreen) {
           btnFullscreen.addEventListener('click', () => this.toggleFullscreen());
         }
-        document.addEventListener('fullscreenchange', () => this.resize());
+        document.addEventListener('fullscreenchange', () => {
+          this.resize();
+          this.updateFullscreenAvailability();
+        });
+        this.fullscreenAppQuery = window.matchMedia('(display-mode: fullscreen)');
+        this.fullscreenAppQuery.addEventListener('change', () => this.updateFullscreenAvailability());
+        this.updateFullscreenAvailability();
 
         document.getElementById('btn-theme').addEventListener('click', () => this.cycleTheme());
         document.getElementById('btn-scanlines').addEventListener('click', () => this.toggleScanlines());
@@ -773,9 +804,30 @@
         const uniformScale = this.canvas.width / this.width;
         this.scaleX = uniformScale;
         this.scaleY = uniformScale;
+
+        // Enlarge the HUD on small screens so the score stays at least ~12 CSS px tall
+        const cssScale = frameWidth / this.width;
+        this.hudScale = Math.min(2.2, Math.max(1, 12 / (18 * cssScale)));
+      }
+
+      // The Fullscreen button/F key only make sense when the Fullscreen API is supported
+      // (not on iPhone) and we aren't already running as a fullscreen PWA, whose
+      // fullscreen comes from the manifest and can't be toggled from the page.
+      // Keep it while the API itself is fullscreen so the button can still exit.
+      canToggleFullscreen() {
+        if (!document.fullscreenEnabled) return false;
+        if (document.fullscreenElement) return true;
+        return !(this.fullscreenAppQuery && this.fullscreenAppQuery.matches);
+      }
+
+      updateFullscreenAvailability() {
+        const available = this.canToggleFullscreen();
+        document.getElementById('btn-fullscreen').classList.toggle('hidden', !available);
+        document.getElementById('help-fullscreen-key').classList.toggle('hidden', !available);
       }
 
       toggleFullscreen() {
+        if (!this.canToggleFullscreen()) return;
         try {
           if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(() => {});
@@ -785,8 +837,35 @@
         } catch (e) {}
       }
 
+      // Restore saved display/audio/gravity settings without sounds or announcements
+      applySavedSettings() {
+        const saved = loadSettings();
+        if (Number.isInteger(saved.theme) && saved.theme >= 0 && saved.theme < THEMES.length) {
+          this.setTheme(saved.theme);
+        }
+        if (typeof saved.scanlines === 'boolean') this.setScanlines(saved.scanlines);
+        if (typeof saved.muted === 'boolean') this.setAudioMuted(saved.muted);
+        if (Number.isInteger(saved.gravity) && saved.gravity >= 0 && saved.gravity < GRAVITY_LEVELS.length) {
+          this.setGravityLevel(saved.gravity, false);
+        }
+      }
+
+      persistSettings() {
+        saveSettings({
+          theme: currentThemeIdx,
+          scanlines: !document.getElementById('overlay-scanlines').classList.contains('hidden'),
+          muted: this.sound.muted,
+          gravity: this.gravityLevel
+        });
+      }
+
       cycleTheme() {
-        currentThemeIdx = (currentThemeIdx + 1) % THEMES.length;
+        this.setTheme((currentThemeIdx + 1) % THEMES.length);
+        this.persistSettings();
+      }
+
+      setTheme(idx) {
+        currentThemeIdx = idx;
         const theme = THEMES[currentThemeIdx];
         document.documentElement.style.setProperty('--primary-color', theme.primary);
         document.documentElement.style.setProperty('--glow-color', theme.glow);
@@ -797,8 +876,14 @@
 
       toggleScanlines() {
         const overlay = document.getElementById('overlay-scanlines');
+        this.setScanlines(overlay.classList.contains('hidden'));
+        this.persistSettings();
+      }
+
+      setScanlines(on) {
+        const overlay = document.getElementById('overlay-scanlines');
         const status = document.getElementById('scanlines-status');
-        if (overlay.classList.contains('hidden')) {
+        if (on) {
           overlay.classList.remove('hidden');
           status.textContent = 'ON';
           status.className = 'text-emerald-400 font-bold';
@@ -811,7 +896,11 @@
 
       toggleAudio() {
         this.sound.ensureActive();
-        const isMuted = !this.sound.muted;
+        this.setAudioMuted(!this.sound.muted);
+        this.persistSettings();
+      }
+
+      setAudioMuted(isMuted) {
         this.sound.setMuted(isMuted);
         const icon = document.getElementById('audio-icon');
         const status = document.getElementById('audio-status');
@@ -832,7 +921,12 @@
       }
 
       toggleGravity() {
-        this.gravityLevel = (this.gravityLevel + 1) % GRAVITY_LEVELS.length;
+        this.setGravityLevel((this.gravityLevel + 1) % GRAVITY_LEVELS.length, true);
+        this.persistSettings();
+      }
+
+      setGravityLevel(level, announce) {
+        this.gravityLevel = level;
         this.gravityMode = this.gravityLevel > 0;
 
         const cfg = GRAVITY_LEVELS[this.gravityLevel];
@@ -843,6 +937,7 @@
         status.textContent = cfg.label;
         status.className = cfg.className;
 
+        if (!announce) return;
         this.addFloatingText(this.width / 2, this.height / 2 - 65, cfg.msg, cfg.color);
         if (this.gravityMode) this.sound.playExtraLife();
 
@@ -1905,20 +2000,35 @@
         ctx.shadowColor = theme.glow;
         ctx.lineWidth = 1.5;
 
-        ctx.textAlign = 'left';
-        ctx.fillText(this.score.toString().padStart(2, '0'), 30, 42);
+        // Each HUD group is scaled around its own corner/edge anchor
+        const s = this.hudScale || 1;
 
+        ctx.save();
+        ctx.translate(this.width / 2, 0);
+        ctx.scale(s, s);
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#e2e8f0';
-        ctx.font = "14px 'Press Start 2P', monospace";
-        ctx.fillText(`HIGH: ${Math.max(this.score, this.highScore).toLocaleString()}`, this.width / 2, 40);
+        ctx.fillText(this.score.toString().padStart(2, '0'), 0, 42);
+        ctx.restore();
 
-        ctx.textAlign = 'right';
+        ctx.font = "14px 'Press Start 2P', monospace";
         ctx.fillStyle = '#e2e8f0';
-        ctx.fillText(`WAVE ${this.wave}`, this.width - 30, 42);
+
+        ctx.save();
+        ctx.scale(s, s);
+        ctx.textAlign = 'left';
+        ctx.fillText(`HIGH: ${Math.max(this.score, this.highScore).toLocaleString()}`, 30, 42);
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(this.width, 0);
+        ctx.scale(s, s);
+        ctx.textAlign = 'right';
+        ctx.fillText(`WAVE ${this.wave}`, -30, 42);
+        ctx.restore();
 
         ctx.strokeStyle = theme.primary;
         ctx.shadowColor = theme.glow;
+        ctx.scale(s, s);
         for (let i = 0; i < this.lives; i++) {
           ctx.save();
           ctx.translate(35 + i * 22, 65);
@@ -1966,6 +2076,13 @@
       window.addEventListener('load', initGame);
     } else {
       initGame();
+    }
+
+    // Offline support and PWA install (service workers need http(s), not file://)
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker registration failed:', e));
+      });
     }
   </script>
 </body>

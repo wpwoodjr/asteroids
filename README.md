@@ -1,8 +1,8 @@
-# Asteroids
+# Vector Rocks
 
 A vector-style space shooter that runs in the browser from a single HTML file. It has no build step and no dependencies to install.
 
-You fly a ship through a field of drifting rocks, blast them into smaller pieces, dodge flying saucers, and survive as long as you can. Glowing vector lines, an optional CRT scanline overlay and synthesized sound effects give it a 1979-arcade look. It also adds an optional gravity-well mode.
+You fly a ship through a field of drifting rocks, blast them into smaller pieces, dodge flying saucers, and survive as long as you can. Glowing vector lines, an optional CRT scanline overlay and synthesized sound effects give it a classic arcade look. It also adds an optional gravity-well mode.
 
 ## Playing
 
@@ -70,6 +70,6 @@ Everything lives in `asteroids.html`:
 - The game simulates a fixed **1000 × 750** logical world and scales it onto the canvas. Each frame's time step is capped at 100 ms, so physics doesn't jump after the tab was in the background.
 - Physics uses frame-time-based velocity integration with screen wrap-around. Gravity is an inverse-square pull with a minimum-distance clamp, scaled for each entity type.
 
-## Disclaimer
+## License
 
-This is an independent fan project inspired by classic vector arcade games. It is not affiliated with or endorsed by Atari.
+[MIT](LICENSE) © 2026 Bill Wood

@@ -81,10 +81,6 @@
         <span id="audio-status" class="hidden sm:inline">SFX</span>
       </button>
 
-      <button id="btn-touch-toggle" class="sm:hidden px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs" title="Toggle On-screen Touch Controls">
-        🎮 Touch
-      </button>
-
       <button id="btn-gravity" class="px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Cycle Gravity Strength: Off -> Low -> Med -> High (G)">
         🪐 <span class="hidden sm:inline">Gravity:</span> <span id="gravity-status" class="text-neutral-500 font-bold">OFF</span>
       </button>
@@ -236,7 +232,7 @@
               <h4 class="font-bold text-white mb-1">PRO SURVIVAL TIPS</h4>
               <p class="text-neutral-400 text-[11px] leading-relaxed">
                 • Authentic Zero-G Inertia: Space has zero friction! Your ship coasts indefinitely until you rotate 180° and apply counter-thrust to brake.<br>
-                • Gravity Mode [G]: cycles through OFF, LOW, MED, and HIGH gravity wells. Slingshot around the planet and crush hazards into its surface!<br>
+                • Gravity Mode [G]: cycles through OFF, LOW, MED, and HIGH gravity wells. Slingshot around the planet, and shoot asteroids before they fall in: each one it swallows costs you its points!<br>
                 • Hyperspace is a risky escape: you teleport randomly across space.<br>
                 • Small saucers are deadly accurate: destroy them before they line up a shot!<br>
                 • The arcade heartbeat pulses faster as fewer asteroids remain.
@@ -286,7 +282,7 @@
     </div>
   </main>
 
-  <!-- Mobile / Touch Controls Overlay (visible on touch devices or toggled) -->
+  <!-- Mobile / Touch Controls Overlay (always visible) -->
   <div id="touch-controls" class="w-full max-w-7xl flex items-center justify-between px-7 sm:px-14 md:px-20 mb-6 sm:mb-10 select-none z-20">
     <!-- Left Hand: Rotation Buttons -->
     <div class="flex items-center gap-2">
@@ -679,7 +675,6 @@
 
         // Timers & rhythm
         this.heartbeatTimer = 0;
-        this.heartbeatInterval = 1.0;
         this.heartbeatStep = 0;
         this.ufoSpawnTimer = 20;
         this.waveTransitionTimer = 0;
@@ -744,11 +739,6 @@
         const hideHelp = () => screenHelp.classList.add('hidden');
         document.getElementById('btn-close-help').addEventListener('click', hideHelp);
         document.getElementById('btn-help-ok').addEventListener('click', hideHelp);
-
-        const touchControls = document.getElementById('touch-controls');
-        document.getElementById('btn-touch-toggle').addEventListener('click', () => {
-          touchControls.classList.toggle('hidden');
-        });
 
         document.getElementById('btn-start-game').addEventListener('click', () => this.startGame());
         document.getElementById('btn-resume-game').addEventListener('click', () => this.togglePause());
@@ -833,6 +823,11 @@
           icon.textContent = '🔊';
           status.textContent = 'SFX';
           status.className = 'hidden sm:inline text-white';
+          // Restart looping sounds that were skipped while muted
+          if (this.state === 'PLAYING') {
+            if (this.ufo) this.sound.startUfoSiren(this.ufo.isSmall);
+            if (this.keys.thrust) this.sound.startThrust();
+          }
         }
       }
 
@@ -913,8 +908,11 @@
               return;
             }
           }
+          // Ignore auto-repeat so a held fire key can't skip the game over screen,
+          // and don't start a game behind an open Help or Scores window
+          const canStart = !e.repeat && !this.isModalOpen();
           if (e.key === 'r' || e.key === 'R') {
-            if (this.state === 'GAMEOVER' || this.state === 'PAUSED') {
+            if (canStart && (this.state === 'GAMEOVER' || this.state === 'PAUSED')) {
               this.startGame();
               e.preventDefault();
               return;
@@ -922,7 +920,7 @@
           }
 
           if ((this.state === 'START' || this.state === 'GAMEOVER') && (e.code === 'Space' || e.key === 'Enter')) {
-            this.startGame();
+            if (canStart) this.startGame();
             e.preventDefault();
             return;
           }
@@ -1054,12 +1052,19 @@
           const row = document.createElement('div');
           const isUser = entry.name === 'YOU';
           row.className = `grid grid-cols-4 py-1 px-1.5 rounded ${isUser ? 'bg-yellow-500/20 text-yellow-300 font-bold border border-yellow-500/40' : 'text-neutral-300'}`;
-          row.innerHTML = `
-            <span>#${idx + 1}</span>
-            <span class="${isUser ? 'text-yellow-400' : 'text-white'}">${entry.name}</span>
-            <span class="text-neutral-400">W${entry.wave}</span>
-            <span class="text-right ${idx === 0 ? 'text-yellow-400' : ''}">${entry.score.toLocaleString()}</span>
-          `;
+          // Saved entries come from localStorage, so insert them as text, not HTML
+          const cells = [
+            [`#${idx + 1}`, ''],
+            [String(entry.name), isUser ? 'text-yellow-400' : 'text-white'],
+            [`W${entry.wave}`, 'text-neutral-400'],
+            [Number(entry.score).toLocaleString(), `text-right ${idx === 0 ? 'text-yellow-400' : ''}`]
+          ];
+          for (const [text, className] of cells) {
+            const cell = document.createElement('span');
+            cell.className = className;
+            cell.textContent = text;
+            row.appendChild(cell);
+          }
           list.appendChild(row);
         });
       }
@@ -1074,10 +1079,26 @@
         this.renderLeaderboard();
       }
 
+      isModalOpen() {
+        return !document.getElementById('screen-help').classList.contains('hidden') ||
+               !document.getElementById('screen-scores').classList.contains('hidden');
+      }
+
+      resetInput() {
+        this.keys.left = false;
+        this.keys.right = false;
+        this.keys.thrust = false;
+        this.keys.fire = false;
+        this.keys.hyperspace = false;
+        this.canFire = true;
+        this.canHyperspace = true;
+      }
+
       startGame() {
         this.sound.ensureActive();
         this.sound.stopThrust();
         this.sound.stopUfoSiren();
+        this.resetInput();
 
         this.score = 0;
         this.lives = 3;
@@ -1133,7 +1154,6 @@
           this.asteroids.push(this.createAsteroid(x, y, 'large', waveNum));
         }
 
-        this.heartbeatInterval = 1.0;
         this.heartbeatTimer = 0;
         this.waveTransitionText = `WAVE ${waveNum}`;
         this.waveTransitionTimer = 2.0;
@@ -1289,6 +1309,7 @@
           this.state = 'PAUSED';
           this.sound.stopThrust();
           this.sound.stopUfoSiren();
+          this.resetInput();
           document.getElementById('screen-pause').classList.remove('hidden');
         } else if (this.state === 'PAUSED') {
           this.state = 'PLAYING';
@@ -1377,7 +1398,8 @@
         } else {
           const ufoDist = this.applyGravity(this.ufo, dt, 0.55, 15);
           if (ufoDist < this.planet.radius + this.ufo.radius) {
-            this.destroyUfo();
+            // Crashing into the planet neither scores nor costs points
+            this.destroyUfo(false);
             this.addFloatingText(this.planet.x, this.planet.y, "UFO CRASHED!", "#38bdf8");
           }
 
@@ -1516,9 +1538,13 @@
           const a = this.asteroids[i];
           const aDist = this.applyGravity(a, dt, 0.75, 10);
           if (aDist < this.planet.radius + a.radius * 0.8) {
-            this.destroyAsteroid(i);
+            // Swallowed whole with no fragments, and it costs the player the
+            // asteroid's point value (score never drops below zero)
+            this.asteroids.splice(i, 1);
+            this.score = Math.max(0, this.score - a.points);
+            this.sound.playExplosion(a.size);
             this.createParticleBurst(a.x, a.y, 22, '#fbbf24', 190);
-            this.addFloatingText(a.x, a.y, "CRUSHED!", "#f59e0b");
+            this.addFloatingText(a.x, a.y, `CRUSHED! -${a.points}`, "#ef4444");
             continue;
           }
 
@@ -1630,13 +1656,15 @@
         }
       }
 
-      destroyUfo() {
+      destroyUfo(awardPoints = true) {
         if (!this.ufo) return;
         this.sound.stopUfoSiren();
         this.sound.playExplosion('medium');
-        this.score += this.ufo.points;
         this.createParticleBurst(this.ufo.x, this.ufo.y, 25, '#38bdf8');
-        this.addFloatingText(this.ufo.x, this.ufo.y, `+${this.ufo.points}`, '#38bdf8');
+        if (awardPoints) {
+          this.score += this.ufo.points;
+          this.addFloatingText(this.ufo.x, this.ufo.y, `+${this.ufo.points}`, '#38bdf8');
+        }
         this.ufo = null;
       }
 
@@ -1662,8 +1690,6 @@
         // Draw Planet and Gravitational Field
         if (this.gravityMode) {
           const cfg = GRAVITY_LEVELS[this.gravityLevel];
-          this.planet.rot += cfg.rotSpeed;
-          this.planet.pulse = (this.planet.pulse + cfg.pulseSpeed) % (Math.PI * 2);
 
           ctx.save();
           ctx.translate(this.planet.x, this.planet.y);
@@ -1913,6 +1939,14 @@
       loop(timestamp) {
         const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
         this.lastTime = timestamp;
+
+        // Planet spins on the start and game over screens too, but freezes while paused.
+        // rotSpeed/pulseSpeed are tuned per 60 fps frame, so scale by elapsed time.
+        if (this.gravityMode && this.state !== 'PAUSED') {
+          const cfg = GRAVITY_LEVELS[this.gravityLevel];
+          this.planet.rot += cfg.rotSpeed * 60 * dt;
+          this.planet.pulse = (this.planet.pulse + cfg.pulseSpeed * 60 * dt) % (Math.PI * 2);
+        }
 
         this.update(dt);
         this.render();

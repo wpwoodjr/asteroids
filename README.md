@@ -41,7 +41,7 @@ An internet connection is needed on first load for Tailwind CSS (CDN) and the Go
 | `M` | Mute / unmute |
 | `F` | Fullscreen |
 
-On touch devices, on-screen buttons handle rotate, thrust, fire, warp and pause. On small screens, the **🎮 Touch** button in the header shows or hides them.
+On touch devices, use the on-screen buttons below the playfield to rotate, thrust, fire, warp and pause.
 
 ## Scoring
 
@@ -58,7 +58,7 @@ You earn an extra ship every 10,000 points. Each wave adds one more large astero
 ## Features
 
 - **Zero-G inertia:** the ship keeps moving until you turn around and thrust the other way. Top speed is capped.
-- **Gravity mode:** a planet in the center pulls on the ship, asteroids, saucers and bullets. Asteroids or saucers that fall into it are destroyed and score for you. Touching the planet costs a ship unless you are still shielded after respawning.
+- **Gravity mode:** a planet in the center pulls on the ship, asteroids, saucers and bullets. A saucer that crashes into it is destroyed with no change to your score, but an asteroid that falls in is swallowed and costs you its point value. Touching the planet costs a ship unless you are still shielded after respawning.
 - **Arcade audio:** all sounds are generated live with the Web Audio API: laser, explosions, thrust rumble, saucer siren, hyperspace, and a heartbeat that speeds up as fewer asteroids remain.
 - **Hall of fame:** the top 5 scores and the all-time high score are saved in the browser's `localStorage`. You can clear them from the Scores screen.
 - **Display options:** 4 vector color themes, a CRT scanline and vignette overlay, and fullscreen. The playfield always scales to 4:3 and adjusts for high-DPI screens.

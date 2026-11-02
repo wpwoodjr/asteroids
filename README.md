@@ -48,7 +48,7 @@ The installed app opens fullscreen and works offline once you've loaded it onlin
 | `P` / `Esc` | Pause / resume |
 | `R` | Restart (when paused or after game over) |
 | `G` | Cycle gravity: Off → Low → Med → High |
-| `C` | Cycle color theme (White, Emerald, Cyan, Amber) |
+| `C` | Cycle color palette (Classic, Arcade Color, Green Screen, Amber, Deep Space) |
 | `M` | Mute / unmute |
 | `F` | Fullscreen (hidden when the installed app is already fullscreen, or on iPhone) |
 
@@ -73,8 +73,8 @@ You earn an extra ship every 10,000 points. Waves start with 4 large asteroids a
 - **Arcade rules:** these follow the original's code. Hit sizes match the original's collision boxes, and asteroids are drawn to match them. At most 27 asteroids can be on screen at once: when the screen is that full, hitting an asteroid still scores but makes fewer fragments, or none. Bullets fly at about the ship's top speed plus the shooter's own velocity, and last 1.2 seconds. Your own bullets can hit you after wrapping around the screen. Saucer bullets and saucers smash asteroids (no points for you), and ramming an asteroid breaks it and scores it even though it costs you the ship. Saucers can have at most 2 bullets on screen. Hyperspace hides you for 0.8 s, and it can destroy your ship: the risk is up to 25%, rising as fewer asteroids remain. After you lose a ship, the new one appears with no shield, and only once no asteroid is near the center and no saucer is on screen.
 - **Arcade audio:** all sounds are generated live with the Web Audio API: laser, explosions, thrust rumble, saucer siren, hyperspace, and a heartbeat that, like the original's, starts each wave at about one beat per 0.9 s and speeds up over about 43 seconds to five beats a second.
 - **Hall of fame:** the top 5 scores and the all-time high score are saved in the browser's `localStorage`. You can clear them from the Scores screen.
-- **Display options:** 4 vector color themes and fullscreen. The playfield always scales to 4:3 and adjusts for high-DPI screens.
-- **Saved settings:** your color theme, sound on/off and gravity level are saved in `localStorage`, so they stay the same the next time you play.
+- **Display options:** 5 color palettes and fullscreen. Each palette gives asteroids, your ship and the saucers their own colors, and bullets match whoever fired them. Classic is all white, like the arcade. The playfield always scales to 4:3 and adjusts for high-DPI screens.
+- **Saved settings:** your color palette, sound on/off and gravity level are saved in `localStorage`, so they stay the same the next time you play.
 
 ## How it works
 

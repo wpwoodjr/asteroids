@@ -61,8 +61,12 @@
     <!-- Quick action buttons -->
     <div class="flex items-center gap-2">
       <button id="btn-theme" class="px-2.5 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition flex items-center gap-1.5 text-xs" title="Change Vector Color Theme">
-        <span class="w-2.5 h-2.5 rounded-full inline-block" id="theme-indicator" style="background-color: #ffffff;"></span>
-        <span id="theme-name">White</span>
+        <span class="inline-flex items-center gap-0.5" id="theme-indicator" title="Asteroids, ship, saucer">
+          <span class="w-2 h-2 rounded-full inline-block bg-white" data-part="rock"></span>
+          <span class="w-2 h-2 rounded-full inline-block bg-white" data-part="ship"></span>
+          <span class="w-2 h-2 rounded-full inline-block bg-white" data-part="saucer"></span>
+        </span>
+        <span id="theme-name">Classic</span>
       </button>
 
       <button id="btn-audio" class="px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Toggle Sound (M)">
@@ -209,7 +213,7 @@
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">S / ↓ / SHIFT</span> : Hyperspace</li>
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">P / ESC</span> : Pause / Resume</li>
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">M</span> : Mute Audio</li>
-                <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">C</span> : Color Theme</li>
+                <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">C</span> : Color Palette</li>
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">G</span> : Gravity Mode</li>
                 <li id="help-fullscreen-key"><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">F</span> : Fullscreen</li>
               </ul>
@@ -653,12 +657,23 @@
       }
     }
 
-    // --- Color Themes ---
+    // --- Color Palettes ---
+    // Each palette colors the three kinds of object separately; bullets match whoever
+    // fired them. primary/glow (the ship's color) also tint the page and the HUD.
+    // Asteroids get the plainest color since they fill the screen.
+    const glowOf = (hex, alpha = 0.75) =>
+      `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${alpha})`;
+    const palette = (name, rock, ship, saucer) => ({
+      name, rock, ship, saucer,
+      rockGlow: glowOf(rock), saucerGlow: glowOf(saucer),
+      primary: ship, glow: glowOf(ship)
+    });
     const THEMES = [
-      { name: "White", primary: "#ffffff", glow: "rgba(255, 255, 255, 0.75)", accent: "#e2e8f0" },
-      { name: "Emerald", primary: "#34d399", glow: "rgba(52, 211, 153, 0.75)", accent: "#10b981" },
-      { name: "Cyan", primary: "#38bdf8", glow: "rgba(56, 189, 248, 0.75)", accent: "#0284c7" },
-      { name: "Amber", primary: "#fbbf24", glow: "rgba(251, 191, 36, 0.75)", accent: "#d97706" }
+      palette('Classic', '#ffffff', '#ffffff', '#ffffff'),       // all white, like the arcade
+      palette('Arcade Color', '#cbd5e1', '#22d3ee', '#f87171'),  // gray rocks, cyan ship, red saucer
+      palette('Green Screen', '#3fa864', '#8dffa8', '#fbbf24'),  // dim green, bright green, amber
+      palette('Amber', '#c28a2c', '#ffd166', '#38bdf8'),         // dim amber, bright amber, cyan
+      palette('Deep Space', '#3b82f6', '#22d3ee', '#fbbf24')     // blue rocks, cyan ship, amber saucer
     ];
     let currentThemeIdx = 0;
 
@@ -985,7 +1000,9 @@
         const theme = THEMES[currentThemeIdx];
         document.documentElement.style.setProperty('--primary-color', theme.primary);
         document.documentElement.style.setProperty('--glow-color', theme.glow);
-        document.getElementById('theme-indicator').style.backgroundColor = theme.primary;
+        for (const dot of document.querySelectorAll('#theme-indicator [data-part]')) {
+          dot.style.backgroundColor = theme[dot.dataset.part];
+        }
         document.getElementById('theme-name').textContent = theme.name;
         document.getElementById('brand-logo').style.color = theme.primary;
       }
@@ -1741,7 +1758,7 @@
           if (ufoDist < this.planet.radius + this.ufo.radius) {
             // Crashing into the planet neither scores nor costs points
             this.destroyUfo(false);
-            this.addFloatingText(this.planet.x, this.planet.y, "UFO CRASHED!", "#38bdf8");
+            this.addFloatingText(this.planet.x, this.planet.y, "UFO CRASHED!", THEMES[currentThemeIdx].saucer);
           }
         }
         if (this.ufo) {
@@ -1972,7 +1989,7 @@
         this.asteroidHitTimer = 80; // holds back saucers while you're busy (see saucerTick)
 
         this.sound.playExplosion(a.size);
-        this.createParticleBurst(a.x, a.y, a.size === 'large' ? 18 : (a.size === 'medium' ? 12 : 8));
+        this.createParticleBurst(a.x, a.y, a.size === 'large' ? 18 : (a.size === 'medium' ? 12 : 8), THEMES[currentThemeIdx].rock);
         if (awardPoints) {
           this.score += a.points;
           this.addFloatingText(a.x, a.y, `+${a.points}`);
@@ -1989,10 +2006,11 @@
       destroyUfo(awardPoints = true) {
         if (!this.ufo) return;
         this.sound.playExplosion('medium');
-        this.createParticleBurst(this.ufo.x, this.ufo.y, 25, '#38bdf8');
+        const saucerColor = THEMES[currentThemeIdx].saucer;
+        this.createParticleBurst(this.ufo.x, this.ufo.y, 25, saucerColor);
         if (awardPoints) {
           this.score += this.ufo.points;
-          this.addFloatingText(this.ufo.x, this.ufo.y, `+${this.ufo.points}`, '#38bdf8');
+          this.addFloatingText(this.ufo.x, this.ufo.y, `+${this.ufo.points}`, saucerColor);
         }
         this.removeUfo();
       }
@@ -2076,6 +2094,8 @@
         }
 
         // Draw Asteroids
+        ctx.strokeStyle = theme.rock;
+        ctx.shadowColor = theme.rockGlow;
         for (const a of this.asteroids) {
           ctx.save();
           ctx.translate(a.x, a.y);
@@ -2097,8 +2117,8 @@
         if (this.ufo) {
           ctx.save();
           ctx.translate(this.ufo.x, this.ufo.y);
-          ctx.strokeStyle = '#38bdf8';
-          ctx.shadowColor = 'rgba(56, 189, 248, 0.8)';
+          ctx.strokeStyle = theme.saucer;
+          ctx.shadowColor = theme.saucerGlow;
           ctx.lineWidth = 2;
 
           const r = this.ufo.radius;
@@ -2121,6 +2141,8 @@
           ctx.save();
           ctx.translate(this.ship.x, this.ship.y);
           ctx.rotate(this.ship.angle);
+          ctx.strokeStyle = theme.primary;
+          ctx.shadowColor = theme.glow;
 
           const isShieldBlink = this.ship.invulnerable > 0 && Math.floor(Date.now() / 100) % 2 === 0;
 
@@ -2160,6 +2182,7 @@
 
         // Draw Bullets
         ctx.fillStyle = theme.primary;
+        ctx.shadowColor = theme.glow;
         for (const b of this.bullets) {
           ctx.beginPath();
           ctx.arc(b.x, b.y, 2.2, 0, Math.PI * 2);
@@ -2167,8 +2190,8 @@
         }
 
         // Draw UFO Bullets
-        ctx.fillStyle = '#f87171';
-        ctx.shadowColor = 'rgba(248, 113, 113, 0.8)';
+        ctx.fillStyle = theme.saucer;
+        ctx.shadowColor = theme.saucerGlow;
         for (const b of this.ufoBullets) {
           ctx.beginPath();
           ctx.arc(b.x, b.y, 2.5, 0, Math.PI * 2);

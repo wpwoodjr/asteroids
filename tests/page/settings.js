@@ -7,13 +7,13 @@ window.addEventListener('load', () => setTimeout(() => {
   try {
     if (phase === 'set') {
       localStorage.removeItem('asteroids_settings');
-      g.cycleTheme(); g.cycleTheme();       // Cyan
+      g.cycleTheme(); g.cycleTheme();       // Green Screen
       g.toggleAudio();                      // muted
       g.toggleGravity(); g.toggleGravity(); // MED
       const saved = JSON.parse(localStorage.getItem('asteroids_settings'));
       ok('settings saved', saved && saved.theme === 2 && saved.muted === true && saved.gravity === 2);
     } else {
-      ok('theme restored (Cyan)', document.getElementById('theme-name').textContent === 'Cyan');
+      ok('palette restored (Green Screen)', document.getElementById('theme-name').textContent === 'Green Screen');
       ok('CRT overlay removed', !document.getElementById('overlay-scanlines') && !document.getElementById('btn-scanlines'));
       ok('mute restored', g.sound.muted && document.getElementById('audio-icon').textContent === '🔇');
       ok('gravity restored (MED)', g.gravityLevel === 2 && g.gravityMode && g.planet.mass === 980000

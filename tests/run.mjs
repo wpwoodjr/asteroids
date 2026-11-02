@@ -116,6 +116,7 @@ const TESTS = {
   arcade: pageTest('arcade.js'),
   sound: pageTest('sound.js'),
   settings: pageTest('settings.js', ['set', 'check']),
+  palettes: pageTest('palettes.js'),
   fullscreen: async (ctx) => (await import('./cdp/fullscreen.mjs')).default(ctx),
   pwa: async (ctx) => (await import('./cdp/pwa.mjs')).default(ctx)
 };

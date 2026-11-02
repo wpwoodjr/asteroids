@@ -64,7 +64,7 @@ On touch devices, use the on-screen buttons below the playfield to rotate, thrus
 | Large saucer | 200 |
 | Small saucer | 1,000 |
 
-You earn an extra ship every 10,000 points. Each wave adds one more large asteroid, up to 10, and asteroids get about 8% faster per wave. From wave 3, or after 5,000 points, the more accurate small saucers start to appear.
+You earn an extra ship every 10,000 points. Each wave adds one more large asteroid, up to 10, and asteroids get about 8% faster per wave. From wave 3, or after 5,000 points, small saucers start to appear. Large saucers fire roughly in your direction; small saucers aim where you are heading and get more accurate as your score climbs.
 
 ## Features
 

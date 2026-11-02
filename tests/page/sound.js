@@ -81,17 +81,24 @@ window.addEventListener('load', () => setTimeout(async () => {
       return m && Number(m[1]) < Number(m[2]);
     })());
 
-    // Firing sound: "peauw" - audible on phones, bright at the start, dark at the end,
-    // with a tail that carries on past 0.12 s
+    // Firing sound: "PEEAUW" - audible on phones; a clean, punchy "P" (not a buzzy "z"),
+    // the tone held bright for the "EE", then a long fall to a dark "AUW"
     const laser = await render((s) => s.playLaser(), 250);
     out.push(`INFO laser above 250 Hz ${laser.toFixed(4)}`);
     ok('firing sound is audible on a phone speaker', laser >= 0.02, laser.toFixed(4));
-    const brightness = async (from, to) =>
-      (await render((s) => s.playLaser(), 1500, from, to)) / (await render((s) => s.playLaser(), 0, from, to));
-    const early = await brightness(0, 0.04), late = await brightness(0.12, 0.2);
-    ok('firing sound sweeps from bright to dark ("peauw")', early > 2 * late, `${(early * 100).toFixed(0)}% → ${(late * 100).toFixed(0)}% above 1.5 kHz`);
-    const tail = await render((s) => s.playLaser(), 0, 0.12, 0.2), head = await render((s) => s.playLaser(), 0, 0, 0.04);
-    ok('firing sound has a tail (the "w")', tail >= 0.1 * head, `tail ${(tail / head * 100).toFixed(0)}% of the start`);
+    const shot = (hp, from, to) => render((s) => s.playLaser(), hp, from, to);
+    const head = await shot(0, 0, 0.03);
+    const startBuzz = (await shot(3000, 0, 0.03)) / head;
+    ok('firing sound has bite without harsh fizz', startBuzz <= 0.45, `${(startBuzz * 100).toFixed(0)}% above 3 kHz in the first 30 ms`);
+    ok('firing sound starts with impact', head >= 0.08, `first 30 ms at ${head.toFixed(3)} RMS`);
+    const ee = (await shot(1500, 0.01, 0.045)) / (await shot(0, 0.01, 0.045));
+    const auw = (await shot(1500, 0.28, 0.38)) / (await shot(0, 0.28, 0.38));
+    ok('"EE" is bright, "AUW" is dark', ee > 2 * auw, `${(ee * 100).toFixed(0)}% → ${(auw * 100).toFixed(0)}% above 1.5 kHz`);
+    ok('firing sound is aggressive (gritty, bright "EE")', ee >= 0.8, `${(ee * 100).toFixed(0)}% of the "EE" above 1.5 kHz`);
+    await render((s) => { s.masterGain.gain.value = 0.6; s.playLaser(); }, 0, 0, 0.4);
+    ok('firing sound doesn\'t clip', lastPeak < 1, `peak ${lastPeak.toFixed(2)} of 1.0`);
+    const longTail = await shot(0, 0.3, 0.4);
+    ok('the "AUW" carries on to ~0.45 s', longTail >= 0.08 * head, `0.3-0.4 s at ${(longTail / head * 100).toFixed(0)}% of the start`);
     // Asteroid explosions: punchy and audible on phones for every size
     const levels = {}, tails = {};
     for (const size of ['large', 'medium', 'small']) {
@@ -140,6 +147,12 @@ window.addEventListener('load', () => setTimeout(async () => {
        `${levels.large.toFixed(3)} > ${levels.medium.toFixed(3)} > ${levels.small.toFixed(3)}`);
     ok('bigger asteroids rumble longer', tails.large > tails.medium && tails.medium > tails.small,
        `0.3-0.6 s: ${tails.large.toFixed(4)} > ${tails.medium.toFixed(4)} > ${tails.small.toFixed(4)}`);
+    // Low latency: the game asks for the lowest-latency audio, so sounds start right away
+    const live = new SoundEngine();
+    live.init();
+    ok('audio uses a low-latency buffer', live.ctx.baseLatency === undefined || live.ctx.baseLatency <= 0.02,
+       `${(live.ctx.baseLatency * 1000).toFixed(1)} ms`);
+    live.ctx.close();
   } catch (e) { out.push('ERROR ' + e.stack); }
   window.__testResults = out;
   window.__testDone = true;

@@ -338,7 +338,15 @@
         try {
           const AudioContextClass = window.AudioContext || window.webkitAudioContext;
           if (!AudioContextClass) return;
-          this.ctx = new AudioContextClass();
+          // Ask for the lowest output latency the device allows (older browsers don't
+          // take options, so fall back to the default)
+          try {
+            this.ctx = new AudioContextClass({ latencyHint: 0 });
+          } catch (e) {
+            this.ctx = new AudioContextClass();
+          }
+          this.noiseSource(0.01);
+          this.noiseSource(0.01, true);
           this.masterGain = this.ctx.createGain();
           this.masterGain.gain.setValueAtTime(this.muted ? 0 : 0.6, this.ctx.currentTime);
           this.masterGain.connect(this.ctx.destination);
@@ -353,6 +361,34 @@
         if (this.ctx && this.ctx.state === 'suspended') {
           this.ctx.resume();
         }
+      }
+
+      // One long block each of white and brown noise, made once; each sound plays a random
+      // slice of it instead of generating fresh noise, so sounds start without delay
+      noiseSource(seconds, brown = false) {
+        const key = brown ? 'brownNoise' : 'whiteNoise';
+        if (!this[key]) {
+          const rate = this.ctx.sampleRate, length = Math.floor(rate * 4);
+          const buffer = this.ctx.createBuffer(1, length, rate);
+          const data = buffer.getChannelData(0);
+          let last = 0;
+          for (let i = 0; i < length; i++) {
+            const white = Math.random() * 2 - 1;
+            if (brown) {
+              last = (last + 0.02 * white) / 1.02;
+              data[i] = last * 3.5;
+            } else {
+              data[i] = white;
+            }
+          }
+          this[key] = buffer;
+        }
+        const src = this.ctx.createBufferSource();
+        src.buffer = this[key];
+        const offset = Math.random() * Math.max(0, this[key].duration - seconds);
+        const start = src.start.bind(src);
+        src.start = (when) => start(when, offset, seconds);
+        return src;
       }
 
       setMuted(muted) {
@@ -404,41 +440,84 @@
         this.ensureActive();
         if (!this.ctx || this.muted) return;
         const now = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
 
-        // "Peauw": a high, sharp start that sweeps down, with a filter closing as it
-        // falls so the vowel goes from a bright "e" to a dark "uw"
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(900, now);
-        osc.frequency.exponentialRampToValueAtTime(150, now + 0.22);
+        // "PEEAUW": a punchy "P" (a strong dark click), a bright tone held high for the
+        // "EE", then a long fall from bright to dark through "AU" to a soft "W". The gentle
+        // filter (low resonance) keeps the start clean rather than buzzing like a "z".
+        // "P"
+        const click = this.noiseSource(0.03);
+        const clickFilter = this.ctx.createBiquadFilter();
+        clickFilter.type = 'lowpass';
+        clickFilter.frequency.setValueAtTime(2000, now);
+        const clickGain = this.ctx.createGain();
+        clickGain.gain.setValueAtTime(0.3, now);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.018);
+        click.connect(clickFilter);
+        clickFilter.connect(clickGain);
+        clickGain.connect(this.masterGain);
+        click.start(now);
 
+        // "EE" held high, then "AUW" diving. Aggressive, not polite: two detuned sawtooths
+        // (about half a semitone apart) snarl against each other, a square an octave
+        // below growls underneath, a band of noise adds rasp, and hard saturation
+        // overdrives the lot. A resonant filter gives the "EE" its bite, then closes.
+        const drive = this.ctx.createWaveShaper();
+        if (!this.driveCurve) {
+          this.driveCurve = new Float32Array(1024);
+          for (let i = 0; i < this.driveCurve.length; i++) {
+            const x = (i / (this.driveCurve.length - 1)) * 2 - 1;
+            this.driveCurve[i] = Math.tanh(6 * x) / Math.tanh(6);
+          }
+        }
+        drive.curve = this.driveCurve;
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.Q.setValueAtTime(4, now);
-        filter.frequency.setValueAtTime(3200, now);
-        filter.frequency.exponentialRampToValueAtTime(400, now + 0.14);
-
-        // Full volume briefly, then a gentle fade so the low "w" end is still heard
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.setValueAtTime(0.08, now + 0.04);
-        gain.gain.linearRampToValueAtTime(0.03, now + 0.16);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
-
-        osc.connect(filter);
+        filter.Q.setValueAtTime(3, now);
+        filter.frequency.setValueAtTime(2300, now);
+        filter.frequency.setValueAtTime(2300, now + 0.03);
+        filter.frequency.exponentialRampToValueAtTime(480, now + 0.36);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.17, now + 0.002);
+        gain.gain.setValueAtTime(0.17, now + 0.06);
+        gain.gain.linearRampToValueAtTime(0.07, now + 0.28);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.46);
+        const mix = this.ctx.createGain();
+        mix.gain.setValueAtTime(0.5, now);
+        const voices = [['sawtooth', 1, 1], ['sawtooth', 1.03, 1], ['square', 0.5, 0.7]];
+        for (const [type, ratio, level] of voices) {
+          const osc = this.ctx.createOscillator();
+          osc.type = type;
+          osc.frequency.setValueAtTime(1400 * ratio, now);
+          osc.frequency.setValueAtTime(1400 * ratio, now + 0.03);
+          osc.frequency.exponentialRampToValueAtTime(230 * ratio, now + 0.42);
+          const voiceGain = this.ctx.createGain();
+          voiceGain.gain.setValueAtTime(level, now);
+          osc.connect(voiceGain);
+          voiceGain.connect(mix);
+          osc.start(now);
+          osc.stop(now + 0.47);
+        }
+        // Rasp: a band of noise that follows the tone down
+        const rasp = this.noiseSource(0.35);
+        const raspBand = this.ctx.createBiquadFilter();
+        raspBand.type = 'bandpass';
+        raspBand.Q.setValueAtTime(2, now);
+        raspBand.frequency.setValueAtTime(1650, now);
+        raspBand.frequency.exponentialRampToValueAtTime(380, now + 0.32);
+        const raspGain = this.ctx.createGain();
+        raspGain.gain.setValueAtTime(0.35, now);
+        raspGain.gain.exponentialRampToValueAtTime(0.01, now + 0.32);
+        rasp.connect(raspBand);
+        raspBand.connect(raspGain);
+        raspGain.connect(mix);
+        rasp.start(now);
+        mix.connect(drive);
+        drive.connect(filter);
         filter.connect(gain);
         gain.connect(this.masterGain);
-        osc.start(now);
-        osc.stop(now + 0.25);
       }
 
-      // Explosion like a bomb hitting the ground and blowing a crater:
-      // - hit: a very deep, heavy thud (falling square tone) with a dark noise burst
-      // - blast: a big, deep rumble of brown noise that rolls slowly as it fades
-      // - earth: a dull, smooth low-mid "dirt coming down" layer after the blast
-      // - echo: a delayed, darker repeat rolling away across the landscape
-      // Nothing bright or crackly. Bigger objects go deeper and last longer. The thud's
-      // harmonics and the earth layer carry it on phone speakers.
       playExplosion(type) {
         this.ensureActive();
         if (!this.ctx || this.muted) return;
@@ -454,24 +533,7 @@
         const cfg = presets[type] || presets.medium;
         const d = cfg.duration, g = cfg.gain;
 
-        const noise = (seconds, brown = false) => {
-          const data = new Float32Array(Math.floor(rate * seconds));
-          let last = 0;
-          for (let i = 0; i < data.length; i++) {
-            const white = Math.random() * 2 - 1;
-            if (brown) {
-              last = (last + 0.02 * white) / 1.02;
-              data[i] = last * 3.5;
-            } else {
-              data[i] = white;
-            }
-          }
-          const buffer = this.ctx.createBuffer(1, data.length, rate);
-          buffer.getChannelData(0).set(data);
-          const src = this.ctx.createBufferSource();
-          src.buffer = buffer;
-          return src;
-        };
+        const noise = (seconds, brown = false) => this.noiseSource(seconds, brown);
         const filter = (type, from, to, over, q) => {
           const f = this.ctx.createBiquadFilter();
           f.type = type;

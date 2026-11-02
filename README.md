@@ -4,7 +4,7 @@
 
 A vector-style space shooter that runs in the browser from a single HTML file. It has no build step and no dependencies to install.
 
-You fly a ship through a field of drifting rocks, blast them into smaller pieces, dodge flying saucers, and survive as long as you can. Glowing vector lines, an optional CRT scanline overlay and synthesized sound effects give it a classic arcade look. It also adds an optional gravity-well mode.
+You fly a ship through a field of drifting rocks, blast them into smaller pieces, dodge flying saucers, and survive as long as you can. Glowing vector lines and synthesized sound effects give it a classic arcade look, and the core gameplay follows the 1979 arcade original closely. It also adds an optional gravity-well mode.
 
 ## Playing
 
@@ -44,7 +44,7 @@ The installed app opens fullscreen and works offline once you've loaded it onlin
 | `W` / `↑` | Thrust |
 | `Space` / `J` | Fire (max 4 shots on screen) |
 | Left click (on the playfield) | Fire |
-| `S` / `↓` / `Shift` | Hyperspace (random teleport) |
+| `S` / `↓` / `Shift` | Hyperspace (random teleport; can destroy your ship) |
 | `P` / `Esc` | Pause / resume |
 | `R` | Restart (when paused or after game over) |
 | `G` | Cycle gravity: Off → Low → Med → High |
@@ -52,7 +52,7 @@ The installed app opens fullscreen and works offline once you've loaded it onlin
 | `M` | Mute / unmute |
 | `F` | Fullscreen (hidden when the installed app is already fullscreen, or on iPhone) |
 
-On touch devices, use the on-screen buttons below the playfield to rotate, thrust, fire, warp and pause.
+On touch devices, use the on-screen buttons below the playfield to rotate, thrust, fire, hyperspace and pause.
 
 ## Scoring
 
@@ -64,16 +64,17 @@ On touch devices, use the on-screen buttons below the playfield to rotate, thrus
 | Large saucer | 200 |
 | Small saucer | 1,000 |
 
-You earn an extra ship every 10,000 points. Each wave adds one more large asteroid, up to 10, and asteroids get about 8% faster per wave. From wave 3, or after 5,000 points, small saucers start to appear. Large saucers fire roughly in your direction; small saucers aim where you are heading and get more accurate as your score climbs.
+You earn an extra ship every 10,000 points. Waves start with 4 large asteroids and add 2 more each wave, up to 11. Asteroids don't speed up by wave, but fragments keep their parent's motion plus a random nudge, so they can end up faster than their parent. The next wave starts about 2 seconds after you clear the last asteroid. Flying saucers behave like the original's. The first comes after about 10 seconds, and they come more often as the game goes on. While you're busy shooting asteroids, one only shows up once few rocks remain. The first three are large; after that, small ones become more and more likely, and from 30,000 points every saucer is small. Large saucers fire in random directions. Small saucers aim at you, missing by up to ±22° (±11° from 35,000 points). Saucers fire about every 0.7 seconds, but never while you're respawning or in hyperspace.
 
 ## Features
 
-- **Arcade inertia:** the ship keeps drifting after you let go of thrust and slowly coasts to a stop, losing about a fifth of its speed each second, like the 1979 arcade original. To stop faster, turn around and thrust the other way. In gravity mode there is no friction, so orbits around the planet don't decay. Top speed is capped. Turning and thrust both ease in briefly, so quick taps give fine adjustments.
-- **Gravity mode:** a planet in the center pulls on the ship, asteroids, saucers and bullets. A saucer that crashes into it is destroyed with no change to your score, but an asteroid that falls in is swallowed and costs you its point value. Touching the planet costs a ship unless you are still shielded after respawning.
-- **Arcade audio:** all sounds are generated live with the Web Audio API: laser, explosions, thrust rumble, saucer siren, hyperspace, and a heartbeat that speeds up as fewer asteroids remain.
+- **Arcade inertia:** the ship keeps drifting after you let go of thrust and slowly coasts to a stop, losing about a fifth of its speed each second, like the 1979 arcade original. To stop faster, turn around and thrust the other way. In gravity mode there is no friction, so orbits around the planet don't decay. Thrust and top speed match the original: about 2 seconds to full speed, capped at about 470 px/s along each axis (so diagonal flight is faster).
+- **Gravity mode:** a planet in the center pulls on the ship, asteroids, saucers and bullets. A saucer that crashes into it is destroyed with no change to your score, but an asteroid that falls in is swallowed and costs you its point value. Touching the planet costs a ship. If you turn gravity on while your ship is near the center, the ship is moved clear and briefly shielded.
+- **Arcade rules:** these follow the original's code. Hit sizes match the original's collision boxes, and asteroids are drawn to match them. At most 27 asteroids can be on screen at once: when the screen is that full, hitting an asteroid still scores but makes fewer fragments, or none. Bullets fly at about the ship's top speed plus the shooter's own velocity, and last 1.2 seconds. Your own bullets can hit you after wrapping around the screen. Saucer bullets and saucers smash asteroids (no points for you), and ramming an asteroid breaks it and scores it even though it costs you the ship. Saucers can have at most 2 bullets on screen. Hyperspace hides you for 0.8 s, and it can destroy your ship: the risk is up to 25%, rising as fewer asteroids remain. After you lose a ship, the new one appears with no shield, and only once no asteroid is near the center and no saucer is on screen.
+- **Arcade audio:** all sounds are generated live with the Web Audio API: laser, explosions, thrust rumble, saucer siren, hyperspace, and a heartbeat that, like the original's, starts each wave at about one beat per 0.9 s and speeds up over about 43 seconds to five beats a second.
 - **Hall of fame:** the top 5 scores and the all-time high score are saved in the browser's `localStorage`. You can clear them from the Scores screen.
-- **Display options:** 4 vector color themes, a CRT scanline and vignette overlay, and fullscreen. The playfield always scales to 4:3 and adjusts for high-DPI screens.
-- **Saved settings:** your color theme, CRT overlay, sound on/off and gravity level are saved in `localStorage`, so they stay the same the next time you play.
+- **Display options:** 4 vector color themes and fullscreen. The playfield always scales to 4:3 and adjusts for high-DPI screens.
+- **Saved settings:** your color theme, sound on/off and gravity level are saved in `localStorage`, so they stay the same the next time you play.
 
 ## How it works
 

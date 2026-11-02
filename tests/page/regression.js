@@ -28,12 +28,12 @@ window.addEventListener('load', () => setTimeout(() => {
 
     // Asteroid swallowed by the planet: no fragments, costs its points, score floors at 0
     if (!g.gravityMode) g.toggleGravity();
-    const sentinel = g.createAsteroid(50, 50, 'small', 1); sentinel.vx = sentinel.vy = 0;
-    g.asteroids = [g.createAsteroid(g.planet.x, g.planet.y, 'large', 1), sentinel];
+    const sentinel = g.createAsteroid(50, 50, 'small'); sentinel.vx = sentinel.vy = 0;
+    g.asteroids = [g.createAsteroid(g.planet.x, g.planet.y, 'large'), sentinel];
     g.ufo = null; g.ufoSpawnTimer = 99;
     g.score = 500; const before = g.score; g.update(0.016); g.update(0.016);
     ok('crushed large: no fragments, -20', g.asteroids.length === 1 && g.score - before === -20);
-    g.score = 5; g.asteroids = [g.createAsteroid(g.planet.x, g.planet.y, 'small', 1), sentinel]; g.update(0.016);
+    g.score = 5; g.asteroids = [g.createAsteroid(g.planet.x, g.planet.y, 'small'), sentinel]; g.update(0.016);
     ok('score floors at zero', g.score === 0);
 
     // Saucer crashing into the planet: no score change; shooting one still scores

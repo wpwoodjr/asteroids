@@ -1,4 +1,4 @@
-// Ship physics: arcade friction, turn/thrust ease-in, gravity-mode exemption, top speed.
+// Ship physics: arcade friction, full-strength turning and thrust, gravity-mode exemption, top speed.
 window.addEventListener('load', () => setTimeout(() => {
   const g = window.__asteroidsGameInstance, out = [];
   const ok = (n, c, x = '') => out.push(`${c ? 'PASS' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`);
@@ -11,6 +11,7 @@ window.addEventListener('load', () => setTimeout(() => {
   };
   const fresh = () => { g.startGame(); g.asteroids = []; g.ship.invulnerable = 999; g.resetInput(); };
   const realCreateWave = g.createWave.bind(g);
+  const ROT = 3 / 256 * 2 * Math.PI * 60; // arcade turn rate, ~4.42 rad/s
   try {
     // Stop the empty field from triggering a new wave
     g.createWave = () => {};
@@ -21,26 +22,19 @@ window.addEventListener('load', () => setTimeout(() => {
     step(2);
     ok('~3 s half-life', Math.abs(g.ship.vx - 300 * Math.pow(0.79, 3)) < 2, g.ship.vx.toFixed(1));
 
-    // Thrust ease-in
+    // Thrust is full strength from the first frame
     fresh(); g.ship.angle = 0; g.keys.thrust = true; step(1 / 60);
-    const first = g.ship.vx;
-    ok('thrust starts gentle', first > 350 / 60 * 0.3 && first < 350 / 60 * 0.45, (first / (350 / 60) * 100).toFixed(0) + '% power');
-    step(0.2); const before = g.ship.vx; step(1 / 60);
-    ok('thrust reaches full power', Math.abs((g.ship.vx - before) - 350 / 60) < 0.01);
-    g.keys.thrust = false; step(1 / 60); g.keys.thrust = true; const v0 = g.ship.vx; step(1 / 60);
-    ok('ease restarts after release', (g.ship.vx - v0) < 350 / 60 * 0.45);
+    ok('thrust is full power immediately', Math.abs(g.ship.vx - SHIP_THRUST / 60) < 1e-9, g.ship.vx.toFixed(2));
     g.keys.thrust = false;
 
-    // Rotation ease-in, instant stop
+    // Turning: full speed immediately, stops instantly on release
     fresh(); g.ship.angle = 0; g.keys.right = true; step(1 / 60);
-    const a1 = g.ship.angle;
-    ok('turn starts gentle', a1 < 4.2 / 60 * 0.45 && a1 > 0, (a1 / (4.2 / 60) * 100).toFixed(0) + '% speed');
-    step(0.2); const a2 = g.ship.angle; step(1 / 60);
-    ok('turn reaches full speed', Math.abs((g.ship.angle - a2) - 4.2 / 60) < 1e-6);
-    g.keys.right = false; const a3 = g.ship.angle; step(0.5);
-    ok('turn stops instantly on release', g.ship.angle === a3);
-    g.keys.right = true; step(0.3); g.keys.right = false; g.keys.left = true; const a4 = g.ship.angle; step(1 / 60);
-    ok('reversing direction eases in again', (a4 - g.ship.angle) < 4.2 / 60 * 0.45);
+    ok('turns at full speed immediately', Math.abs(g.ship.angle - ROT / 60) < 1e-9);
+    ok('turn rate is the arcade 3/256 turn per frame (~4.42 rad/s)', Math.abs(ROT - 4.418) < 0.001, ROT.toFixed(3));
+    g.keys.right = false; const a1 = g.ship.angle; step(0.5);
+    ok('turn stops instantly on release', g.ship.angle === a1);
+    g.keys.left = true; step(1 / 60);
+    ok('reversing turns at full speed immediately', Math.abs((a1 - g.ship.angle) - ROT / 60) < 1e-9);
     g.keys.left = false;
 
     // No friction in gravity mode (planet pull disabled to isolate friction)
@@ -53,7 +47,12 @@ window.addEventListener('load', () => setTimeout(() => {
 
     // Top speed is still capped under full thrust
     fresh(); g.ship.angle = 0; g.keys.thrust = true; step(5);
-    ok('top speed capped at 480', Math.abs(Math.hypot(g.ship.vx, g.ship.vy) - 480) < 0.5);
+    ok('thrust is ~218 px/s² (arcade)', Math.abs(SHIP_THRUST - 218) < 1, SHIP_THRUST.toFixed(1));
+    ok('top speed along an axis ~468 px/s', Math.abs(g.ship.vx - SHIP_MAX_AXIS) < 1e-6 && Math.abs(SHIP_MAX_AXIS - 468.75) < 0.01, g.ship.vx.toFixed(1));
+    g.keys.thrust = false;
+    fresh(); g.ship.angle = Math.PI / 4; g.keys.thrust = true; step(5);
+    const diag = Math.hypot(g.ship.vx, g.ship.vy);
+    ok('diagonal top speed is faster (per-axis clamp)', Math.abs(diag - SHIP_MAX_AXIS * Math.SQRT2) < 1e-6, diag.toFixed(1));
     g.keys.thrust = false;
   } catch (e) { out.push('ERROR ' + e.stack); }
   g.createWave = realCreateWave;

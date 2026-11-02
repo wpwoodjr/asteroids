@@ -1,0 +1,52 @@
+# Think-about-it list
+
+Open questions and possible changes that haven't been decided yet.
+
+## Respawn can take a long time
+
+After you lose a ship, the new one appears only when no asteroid is within 125 px of the center and no saucer is on screen. This matches the 1979 arcade code: when the respawn timer runs out, it checks the spawn area (`$7139`) and for a saucer (`$705D`), and if either is blocked it keeps waiting (`$7062`–`$7064`).
+
+Reported once (2026-11-02): destroyed by an asteroid, and the ship didn't respawn. I couldn't make it hang for good, but simulations show long waits:
+
+| Situation | Usual wait | Longest wait | Never respawned |
+| --- | --- | --- | --- |
+| Busy asteroid field, gravity off | ~3 s | ~13 s | 0 of 120 |
+| Busy asteroid field, high gravity | ~2.4 s | ~14 s | 0 of 120 |
+| Saucer on screen, gravity off | +8.5 s | +8.5 s | 0 of 150 |
+| Saucer on screen, high gravity | +7 s | +39 s | 0 of 150 |
+
+A saucer only leaves by crossing the screen or being destroyed, and high gravity can hold one back for over half a minute. Nothing on screen says the game is waiting, so it looks stuck. Still unknown for the report: whether gravity was on, whether a saucer was on screen, and how long the wait was. A rarer real bug isn't ruled out.
+
+Options (can be combined):
+
+1. **Keep it:** arcade-accurate.
+2. **Show a message**, such as "WAITING FOR CLEAR SPACE", while the respawn is held up.
+3. **Don't wait for the saucer:** respawn once the center is clear. The saucer holds fire while you respawn, so its first shot comes about 1.2 s after you reappear.
+4. **Cap the wait:** respawn after at most a few extra seconds no matter what.
+
+The code is in `isSpawnAreaClear()` and the ship update in `asteroids.html`.
+
+## Header buttons run off the screen on phones
+
+On phone screens, the row of header buttons (theme, sound, gravity, scores, fullscreen, help) needs about 423 px, plus page padding, so the last buttons are cut off and can't be reached. Measured after removing the CRT button: at 390–430 px wide the Help button is cut off, and at 360 px Fullscreen is too.
+
+Options:
+
+1. **Wrap the buttons** onto a second row on narrow screens.
+2. **Shrink them to icons only** on phones (some already hide their text labels).
+3. **Move them into a menu**, such as a single ⚙ button that opens the settings.
+
+## Where new waves' asteroids appear
+
+When a new wave starts, the ship stays where it is in both versions, still moving. The difference is where the new large asteroids appear:
+
+- **Original:** each one starts on a screen edge, either along the left/right edge or along the top/bottom edge, chosen at random per rock (`$719D`–`$71D3`). They drift in from the edges toward wherever the ship is.
+- **This version:** anywhere on screen, at least 150 px from the ship (and clear of the planet in gravity mode).
+
+Options:
+
+1. **Match the original:** start them on the edges. Catch: if the ship is sitting at an edge when the wave starts, a rock can appear close to it (true in the original too).
+2. **Edges, but not near the ship:** start on the edges, skipping spots within 150 px of the ship.
+3. **Keep it as is.**
+
+The code is in `createWave()` in `asteroids.html`.

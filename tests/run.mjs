@@ -113,6 +113,8 @@ const TESTS = {
   physics: pageTest('physics.js'),
   mouse: pageTest('mouse.js'),
   saucer: pageTest('saucer.js'),
+  arcade: pageTest('arcade.js'),
+  sound: pageTest('sound.js'),
   settings: pageTest('settings.js', ['set', 'check']),
   fullscreen: async (ctx) => (await import('./cdp/fullscreen.mjs')).default(ctx),
   pwa: async (ctx) => (await import('./cdp/pwa.mjs')).default(ctx)

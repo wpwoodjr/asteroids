@@ -33,22 +33,6 @@
     .font-arcade {
       font-family: 'Press Start 2P', monospace;
     }
-    .scanlines {
-      background: linear-gradient(
-        to bottom,
-        rgba(255,255,255,0),
-        rgba(255,255,255,0) 50%,
-        rgba(0, 0, 0, 0.35) 50%,
-        rgba(0, 0, 0, 0.35)
-      );
-      background-size: 100% 4px;
-      pointer-events: none;
-    }
-    .crt-vignette {
-      /* Kept light at the edges so the HUD in the corners stays readable */
-      background: radial-gradient(ellipse at center, transparent 80%, rgba(0,0,0,0.6) 100%);
-      pointer-events: none;
-    }
     .vector-glow {
       text-shadow: 0 0 8px var(--glow-color);
     }
@@ -81,10 +65,6 @@
         <span id="theme-name">White</span>
       </button>
 
-      <button id="btn-scanlines" class="px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs" title="Toggle CRT Scanline Effect">
-        CRT: <span id="scanlines-status" class="text-emerald-400 font-bold">ON</span>
-      </button>
-
       <button id="btn-audio" class="px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Toggle Sound (M)">
         <span id="audio-icon">🔊</span>
         <span id="audio-status" class="hidden sm:inline">SFX</span>
@@ -113,9 +93,6 @@
     <!-- Game Canvas Container with Fixed Aspect Ratio Scaling -->
     <div id="game-frame" class="relative flex items-center justify-center border-2 border-neutral-800 rounded-lg overflow-hidden bg-[#030305] shadow-2xl">
       <canvas id="game-canvas" class="block w-full h-full cursor-crosshair"></canvas>
-
-      <!-- Scanlines and CRT curvature overlay -->
-      <div id="overlay-scanlines" class="absolute inset-0 scanlines crt-vignette pointer-events-none"></div>
 
       <!-- Start / Menu Overlay Screen -->
       <div id="screen-start" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30 transition-opacity duration-200">
@@ -242,9 +219,10 @@
               <p class="text-neutral-400 text-[11px] leading-relaxed">
                 • Arcade Inertia: Your ship keeps drifting after you let go of thrust and only slowly coasts to a stop (no friction in Gravity Mode). To brake fast, rotate 180° and counter-thrust.<br>
                 • Gravity Mode [G]: cycles through OFF, LOW, MED, and HIGH gravity wells. Slingshot around the planet, and shoot asteroids before they fall in: each one it swallows costs you its points!<br>
-                • Hyperspace is a risky escape: you teleport randomly across space.<br>
+                • Hyperspace is a gamble: you vanish for a moment and reappear at random, and the jump can destroy your ship. It's riskier when few asteroids remain.<br>
                 • Small saucers are deadly accurate: destroy them before they line up a shot!<br>
-                • The arcade heartbeat pulses faster as fewer asteroids remain.
+                • Watch your own shots: they wrap around the screen and can hit your ship. Saucer shots smash asteroids too.<br>
+                • The arcade heartbeat speeds up the longer a wave goes on: don't dawdle!
               </p>
             </div>
           </div>
@@ -292,39 +270,39 @@
   </main>
 
   <!-- Mobile / Touch Controls Overlay (always visible) -->
-  <div id="touch-controls" class="w-full max-w-7xl flex items-center justify-between px-7 sm:px-14 md:px-20 mb-6 sm:mb-10 select-none z-20">
+  <div id="touch-controls" class="w-full max-w-7xl flex items-center justify-between px-1 sm:px-14 md:px-20 mb-6 sm:mb-10 select-none z-20">
     <!-- Left Hand: Rotation Buttons -->
-    <div class="flex items-center gap-2">
-      <button id="btn-touch-left" class="touch-btn w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <button id="btn-touch-left" class="touch-btn w-[52px] h-[52px] sm:w-[72px] sm:h-[72px] rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
         <span>⟲</span>
-        <span class="text-[9px] text-neutral-400 -mt-1 font-arcade">LEFT</span>
+        <span class="text-[7px] sm:text-[9px] text-neutral-400 -mt-1 font-arcade">LEFT</span>
       </button>
-      <button id="btn-touch-right" class="touch-btn w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
+      <button id="btn-touch-right" class="touch-btn w-[52px] h-[52px] sm:w-[72px] sm:h-[72px] rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
         <span>⟳</span>
-        <span class="text-[9px] text-neutral-400 -mt-1 font-arcade">RIGHT</span>
+        <span class="text-[7px] sm:text-[9px] text-neutral-400 -mt-1 font-arcade">RIGHT</span>
       </button>
     </div>
 
     <!-- Middle: Hyperspace & Pause -->
-    <div class="flex items-center gap-2">
-      <button id="btn-touch-hyperspace" class="touch-btn px-3 h-12 rounded-lg bg-neutral-900/80 border border-purple-500/60 text-purple-300 flex flex-col items-center justify-center text-xs font-arcade active:border-purple-400">
-        <span>WARP</span>
-        <span class="text-[8px] text-purple-400">HYPER</span>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <button id="btn-touch-hyperspace" class="touch-btn w-14 h-12 sm:w-20 rounded-lg bg-neutral-900/80 border border-purple-500/60 text-purple-300 flex flex-col items-center justify-center text-[9px] sm:text-xs leading-tight font-arcade active:border-purple-400">
+        <span>HYPER</span>
+        <span>SPACE</span>
       </button>
-      <button id="btn-touch-pause" class="touch-btn w-10 h-10 rounded-lg bg-neutral-900/80 border border-neutral-700 text-neutral-400 flex items-center justify-center text-sm font-bold">
+      <button id="btn-touch-pause" class="touch-btn w-14 h-12 sm:w-20 rounded-lg bg-neutral-900/80 border border-neutral-700 text-neutral-400 flex items-center justify-center text-lg font-bold">
         ⏸
       </button>
     </div>
 
     <!-- Right Hand: Thrust & Fire Buttons -->
-    <div class="flex items-center gap-2">
-      <button id="btn-touch-thrust" class="touch-btn w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-neutral-900/90 border-2 border-emerald-600 text-emerald-400 flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <button id="btn-touch-thrust" class="touch-btn w-[52px] h-[52px] sm:w-[72px] sm:h-[72px] rounded-full bg-neutral-900/90 border-2 border-emerald-600 text-emerald-400 flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
         <span>▲</span>
-        <span class="text-[8px] text-emerald-400 -mt-1 font-arcade">THRUST</span>
+        <span class="text-[6px] sm:text-[8px] text-emerald-400 -mt-1 font-arcade">THRUST</span>
       </button>
-      <button id="btn-touch-fire" class="touch-btn w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-neutral-900/90 border-2 border-red-500 text-red-400 flex flex-col items-center justify-center font-bold text-xl active:border-white shadow-lg">
+      <button id="btn-touch-fire" class="touch-btn w-[60px] h-[60px] sm:w-20 sm:h-20 rounded-full bg-neutral-900/90 border-2 border-red-500 text-red-400 flex flex-col items-center justify-center font-bold text-xl active:border-white shadow-lg">
         <span>●</span>
-        <span class="text-[9px] text-red-400 -mt-1 font-arcade">FIRE</span>
+        <span class="text-[8px] sm:text-[9px] text-red-400 -mt-1 font-arcade">FIRE</span>
       </button>
     </div>
   </div>
@@ -425,57 +403,138 @@
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(880, now);
-        osc.frequency.exponentialRampToValueAtTime(110, now + 0.12);
+        // "Peauw": a high, sharp start that sweeps down, with a filter closing as it
+        // falls so the vowel goes from a bright "e" to a dark "uw"
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(900, now);
+        osc.frequency.exponentialRampToValueAtTime(150, now + 0.22);
 
-        gain.gain.setValueAtTime(0.25, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.Q.setValueAtTime(4, now);
+        filter.frequency.setValueAtTime(3200, now);
+        filter.frequency.exponentialRampToValueAtTime(400, now + 0.14);
 
-        osc.connect(gain);
+        // Full volume briefly, then a gentle fade so the low "w" end is still heard
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.setValueAtTime(0.08, now + 0.04);
+        gain.gain.linearRampToValueAtTime(0.03, now + 0.16);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+        osc.connect(filter);
+        filter.connect(gain);
         gain.connect(this.masterGain);
         osc.start(now);
-        osc.stop(now + 0.13);
+        osc.stop(now + 0.25);
       }
 
+      // Explosion like a bomb hitting the ground and blowing a crater:
+      // - hit: a very deep, heavy thud (falling square tone) with a dark noise burst
+      // - blast: a big, deep rumble of brown noise that rolls slowly as it fades
+      // - earth: a dull, smooth low-mid "dirt coming down" layer after the blast
+      // - echo: a delayed, darker repeat rolling away across the landscape
+      // Nothing bright or crackly. Bigger objects go deeper and last longer. The thud's
+      // harmonics and the earth layer carry it on phone speakers.
       playExplosion(type) {
         this.ensureActive();
         if (!this.ctx || this.muted) return;
         const now = this.ctx.currentTime;
+        const rate = this.ctx.sampleRate;
 
         const presets = {
-          large:  { duration: 0.8,  freq: 160, gain: 0.7 },
-          medium: { duration: 0.5,  freq: 350, gain: 0.5 },
-          small:  { duration: 0.25, freq: 750, gain: 0.4 },
-          ship:   { duration: 1.2,  freq: 220, gain: 0.8 }
+          large:  { duration: 2.6, thud: 42, open: 900,  gain: 1.05 },
+          medium: { duration: 1.8, thud: 50, open: 1100, gain: 0.9 },
+          small:  { duration: 1.1, thud: 62, open: 1400, gain: 0.78 },
+          ship:   { duration: 3.0, thud: 36, open: 800,  gain: 1.17 }
         };
-        const cfg = presets[type] || { duration: 0.4, freq: 300, gain: 0.5 };
+        const cfg = presets[type] || presets.medium;
+        const d = cfg.duration, g = cfg.gain;
 
-        const bufferSize = Math.floor(this.ctx.sampleRate * cfg.duration);
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-          data[i] = Math.random() * 2 - 1;
-        }
+        const noise = (seconds, brown = false) => {
+          const data = new Float32Array(Math.floor(rate * seconds));
+          let last = 0;
+          for (let i = 0; i < data.length; i++) {
+            const white = Math.random() * 2 - 1;
+            if (brown) {
+              last = (last + 0.02 * white) / 1.02;
+              data[i] = last * 3.5;
+            } else {
+              data[i] = white;
+            }
+          }
+          const buffer = this.ctx.createBuffer(1, data.length, rate);
+          buffer.getChannelData(0).set(data);
+          const src = this.ctx.createBufferSource();
+          src.buffer = buffer;
+          return src;
+        };
+        const filter = (type, from, to, over, q) => {
+          const f = this.ctx.createBiquadFilter();
+          f.type = type;
+          f.frequency.setValueAtTime(from, now);
+          if (to) f.frequency.exponentialRampToValueAtTime(to, now + over);
+          if (q) f.Q.setValueAtTime(q, now);
+          return f;
+        };
+        // Gain envelope: list of [seconds, level], ramping exponentially between points
+        const envelope = (points) => {
+          const env = this.ctx.createGain();
+          env.gain.setValueAtTime(0.0001, now);
+          for (const [t, level] of points) env.gain.exponentialRampToValueAtTime(Math.max(level, 0.0001), now + t);
+          return env;
+        };
+        const chain = (...nodes) => {
+          for (let i = 0; i < nodes.length - 1; i++) nodes[i].connect(nodes[i + 1]);
+          return nodes[nodes.length - 1];
+        };
 
-        const noise = this.ctx.createBufferSource();
-        noise.buffer = buffer;
+        // Everything feeds a bus that goes out directly and through the echo
+        const bus = this.ctx.createGain();
+        bus.connect(this.masterGain);
 
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(cfg.freq, now);
-        filter.frequency.linearRampToValueAtTime(40, now + cfg.duration);
+        // Echo: one darker, quieter repeat after ~0.3 s that rolls on a little
+        const delay = this.ctx.createDelay(1);
+        delay.delayTime.setValueAtTime(0.28 + Math.random() * 0.08, now);
+        const echoTone = filter('lowpass', 500);
+        const feedback = this.ctx.createGain();
+        feedback.gain.setValueAtTime(0.35, now);
+        const echoOut = this.ctx.createGain();
+        echoOut.gain.setValueAtTime(0.4, now);
+        bus.connect(delay);
+        chain(delay, echoTone, feedback, delay);
+        chain(echoTone, echoOut).connect(this.masterGain);
 
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(cfg.gain, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + cfg.duration);
+        // Hit: deep thud falling in pitch, with a dark noise burst
+        const thud = this.ctx.createOscillator();
+        thud.type = 'square';
+        thud.frequency.setValueAtTime(cfg.thud, now);
+        thud.frequency.exponentialRampToValueAtTime(cfg.thud * 0.45, now + 0.7);
+        chain(thud, filter('lowpass', 350), envelope([[0.004, g * 0.9], [0.7, 0.001]])).connect(bus);
+        thud.start(now);
+        thud.stop(now + 0.72);
+        const burst = noise(0.25);
+        chain(burst, filter('lowpass', cfg.open, 150, 0.2), envelope([[0.004, g * 0.8], [0.22, 0.001]])).connect(bus);
+        burst.start(now);
 
-        noise.connect(filter);
-        filter.connect(gain);
-        gain.connect(this.masterGain);
+        // Blast: big deep rumble, rolling slowly (volume wobble 2-4 times a second)
+        const blast = noise(d, true);
+        const roll = this.ctx.createGain();
+        roll.gain.setValueAtTime(1, now);
+        const rollLfo = this.ctx.createOscillator();
+        rollLfo.frequency.setValueAtTime(2 + Math.random() * 2, now);
+        const rollDepth = this.ctx.createGain();
+        rollDepth.gain.setValueAtTime(0.35, now);
+        chain(rollLfo, rollDepth).connect(roll.gain);
+        chain(blast, filter('lowpass', cfg.open, 50, d), envelope([[0.03, g * 0.45], [d * 0.3, g * 0.33], [d, 0.001]]), roll).connect(bus);
+        blast.start(now);
+        rollLfo.start(now);
+        rollLfo.stop(now + d);
 
-        noise.start(now);
-        noise.stop(now + cfg.duration + 0.05);
+        // Earth: dull, smooth low-mid noise as the dirt comes down
+        const earth = noise(d);
+        chain(earth, filter('bandpass', 500, 300, d, 0.9),
+          envelope([[0.15, g * 0.06], [d * 0.3, g * 0.22], [d * 0.75, g * 0.08], [d, 0.001]])).connect(bus);
+        earth.start(now);
       }
 
       playHeartbeat(step) {
@@ -485,18 +544,31 @@
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
-        const freq = step === 0 ? 80 : 92;
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, now);
-        osc.frequency.exponentialRampToValueAtTime(35, now + 0.12);
+        // A deep thump that still comes through phone speakers, which can't play 80-90 Hz:
+        // a square wave's harmonics (3x, 5x, 7x...) are in their range, so the ear hears
+        // the low pitch from them. Each beat starts at full volume with the filter wide
+        // open for a crisp attack ("dot", "dit"), then the filter closes to keep the body
+        // round rather than buzzy. The lower note plays first.
+        const freq = step === 0 ? 82.41 : 87.31; // E2, then F2
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, now); // steady pitch, no bend
 
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1500, now);
+        filter.frequency.exponentialRampToValueAtTime(280, now + 0.04);
+        filter.Q.setValueAtTime(0.7, now);
 
-        osc.connect(gain);
+        // Instant attack, hold at full strength, then a gradual fade
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.setValueAtTime(0.22, now + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+        osc.connect(filter);
+        filter.connect(gain);
         gain.connect(this.masterGain);
         osc.start(now);
-        osc.stop(now + 0.13);
+        osc.stop(now + 0.26);
       }
 
       playHyperspace() {
@@ -590,6 +662,46 @@
     ];
     let currentThemeIdx = 0;
 
+    // One arcade velocity unit in px/s. The original screen is 8192 position units
+    // wide (vs our 1000 px) and velocities are applied once per ~60 Hz frame.
+    const ARCADE_VEL_UNIT = 1000 / 8192 * 60;
+
+    // The arcade original has 27 asteroid slots; fragments that don't fit are dropped
+    const MAX_ASTEROIDS = 27;
+
+    // Bullets, as in the arcade original: 63 units (~460 px/s) along the aim direction
+    // plus the shooter's velocity, each axis clamped to 111 units; they last 72 frames
+    const BULLET_SPEED = 63 * ARCADE_VEL_UNIT;
+
+    // Ship thrust: ~1 unit (sin * 2 / 256) every other frame, about 218 px/s². Speed is
+    // clamped per axis to 64 units (~468 px/s), so diagonal flight is faster, as in the original.
+    const SHIP_THRUST = (127 * 2 / 256) * 30 * ARCADE_VEL_UNIT;
+
+    // The arcade saucer code runs every 4th frame; its timers count these ticks
+    const SAUCER_TICK = 4 / 60;
+    const SHIP_MAX_AXIS = 64 * ARCADE_VEL_UNIT;
+
+    // Arcade hit test. Sizes are in arcade collision units (2 position units, ~0.244 px):
+    // asteroids 132 / 72 / 42, ship and small saucer 42, large saucer 72. The moving
+    // object adds its own size: ship 28, small saucer 19, large saucer 37, bullets 0.
+    // A hit needs both offsets within the size and their sum within 1.5x (an octagon).
+    // Like the original, it doesn't wrap around the screen edges.
+    const HIT_UNIT = 2 * 1000 / 8192;
+    function arcadeHit(ax, ay, bx, by, sizeUnits) {
+      const r = sizeUnits * HIT_UNIT;
+      const dx = Math.abs(ax - bx), dy = Math.abs(ay - by);
+      return dx <= r && dy <= r && dx + dy < 1.5 * r;
+    }
+    const BULLET_MAX_AXIS = 111 * ARCADE_VEL_UNIT;
+    const BULLET_LIFE = 72 / 60;
+    function bulletVelocity(angle, shooterVx, shooterVy) {
+      const clamp = (v) => Math.max(-BULLET_MAX_AXIS, Math.min(BULLET_MAX_AXIS, v));
+      return {
+        vx: clamp(Math.cos(angle) * BULLET_SPEED + shooterVx),
+        vy: clamp(Math.sin(angle) * BULLET_SPEED + shooterVy)
+      };
+    }
+
     // --- Gravity Well Presets ---
     const GRAVITY_LEVELS = [
       { label: 'OFF',  mass: 0,       radius: 38, className: 'text-neutral-500 font-bold',               msg: 'OPEN SPACE MODE', color: '#94a3b8', ringColor: null,                         rotSpeed: 0,     pulseSpeed: 0,    rings: 0 },
@@ -642,7 +754,7 @@
       } catch (e) {}
     }
 
-    // --- Settings Persistence (theme, CRT, mute, gravity) ---
+    // --- Settings Persistence (theme, mute, gravity) ---
     function loadSettings() {
       try {
         const parsed = JSON.parse(localStorage.getItem('asteroids_settings'));
@@ -700,7 +812,14 @@
         // Timers & rhythm
         this.heartbeatTimer = 0;
         this.heartbeatStep = 0;
-        this.ufoSpawnTimer = 20;
+        this.heartbeatGap = 48;
+        this.heartbeatSpeedupTimer = 0;
+        this.ufoSpawnTimer = 146;
+        this.saucerReload = 146;
+        this.saucerTickAcc = 0;
+        this.asteroidHitTimer = 0;
+        this.maxRocksForUfo = 5;
+        this.nextWaveTimer = null;
         this.waveTransitionTimer = 0;
         this.waveTransitionText = '';
 
@@ -758,7 +877,6 @@
         this.updateFullscreenAvailability();
 
         document.getElementById('btn-theme').addEventListener('click', () => this.cycleTheme());
-        document.getElementById('btn-scanlines').addEventListener('click', () => this.toggleScanlines());
         document.getElementById('btn-audio').addEventListener('click', () => this.toggleAudio());
         document.getElementById('btn-gravity').addEventListener('click', () => this.toggleGravity());
 
@@ -843,7 +961,6 @@
         if (Number.isInteger(saved.theme) && saved.theme >= 0 && saved.theme < THEMES.length) {
           this.setTheme(saved.theme);
         }
-        if (typeof saved.scanlines === 'boolean') this.setScanlines(saved.scanlines);
         if (typeof saved.muted === 'boolean') this.setAudioMuted(saved.muted);
         if (Number.isInteger(saved.gravity) && saved.gravity >= 0 && saved.gravity < GRAVITY_LEVELS.length) {
           this.setGravityLevel(saved.gravity, false);
@@ -853,7 +970,6 @@
       persistSettings() {
         saveSettings({
           theme: currentThemeIdx,
-          scanlines: !document.getElementById('overlay-scanlines').classList.contains('hidden'),
           muted: this.sound.muted,
           gravity: this.gravityLevel
         });
@@ -872,26 +988,6 @@
         document.getElementById('theme-indicator').style.backgroundColor = theme.primary;
         document.getElementById('theme-name').textContent = theme.name;
         document.getElementById('brand-logo').style.color = theme.primary;
-      }
-
-      toggleScanlines() {
-        const overlay = document.getElementById('overlay-scanlines');
-        this.setScanlines(overlay.classList.contains('hidden'));
-        this.persistSettings();
-      }
-
-      setScanlines(on) {
-        const overlay = document.getElementById('overlay-scanlines');
-        const status = document.getElementById('scanlines-status');
-        if (on) {
-          overlay.classList.remove('hidden');
-          status.textContent = 'ON';
-          status.className = 'text-emerald-400 font-bold';
-        } else {
-          overlay.classList.add('hidden');
-          status.textContent = 'OFF';
-          status.className = 'text-neutral-500 font-bold';
-        }
       }
 
       toggleAudio() {
@@ -941,7 +1037,7 @@
         this.addFloatingText(this.width / 2, this.height / 2 - 65, cfg.msg, cfg.color);
         if (this.gravityMode) this.sound.playExtraLife();
 
-        if (this.gravityMode && this.ship && this.ship.deadTimer <= 0) {
+        if (this.gravityMode && this.isShipActive()) {
           const dist = Math.hypot(this.ship.x - this.planet.x, this.ship.y - this.planet.y);
           if (dist < this.planet.radius + 55) {
             this.ship.x = this.planet.x;
@@ -1214,7 +1310,14 @@
         this.ufo = null;
         this.particles = [];
         this.floatingTexts = [];
-        this.ufoSpawnTimer = 18;
+        this.heartbeatStep = 0; // each game opens on the lower note
+        this.heartbeatSpeedupTimer = 0;
+        this.ufoSpawnTimer = 146;
+        this.saucerReload = 146;
+        this.saucerTickAcc = 0;
+        this.asteroidHitTimer = 0;
+        this.maxRocksForUfo = 5;
+        this.nextWaveTimer = null;
 
         this.spawnShip();
         this.createWave(this.wave);
@@ -1225,9 +1328,31 @@
         document.getElementById('screen-game-over').classList.add('hidden');
       }
 
+      spawnPoint() {
+        return { x: this.width / 2, y: this.gravityMode ? this.planet.y + 165 : this.height / 2 };
+      }
+
+      // The arcade original respawns only when no asteroid is within 1/8 of the screen
+      // width (125 px here) of the spawn point on both axes, and no saucer is on screen
+      isSpawnAreaClear() {
+        if (this.ufo) return false;
+        const { x, y } = this.spawnPoint();
+        return this.asteroids.every((a) => {
+          let dx = Math.abs(a.x - x);
+          let dy = Math.abs(a.y - y);
+          dx = Math.min(dx, this.width - dx);
+          dy = Math.min(dy, this.height - dy);
+          return dx >= 125 || dy >= 125;
+        });
+      }
+
+      isShipActive() {
+        return !!this.ship && this.ship.deadTimer <= 0 && !(this.ship.hyperTimer > 0);
+      }
+
       spawnShip() {
-        const spawnX = this.width / 2;
-        const spawnY = this.gravityMode ? this.planet.y + 165 : this.height / 2;
+        const { x: spawnX, y: spawnY } = this.spawnPoint();
+        this.heartbeatStep = 0; // the heartbeat restarts on the lower note
         this.ship = {
           x: spawnX,
           y: spawnY,
@@ -1235,18 +1360,21 @@
           vy: 0,
           angle: -Math.PI / 2,
           radius: 12,
-          invulnerable: 3.0,
+          hitSize: 42,   // arcade collision units as a target
+          hitterSize: 28, // added when the ship runs into something
+          // No spawn shield, as in the arcade original; respawn waits for a clear area instead
+          invulnerable: 0,
           deadTimer: 0,
-          turnDir: 0,
-          turnHold: 0,
-          thrustHold: 0
+          hyperTimer: 0,
+          hyperDoomed: false
         };
       }
 
       createWave(waveNum) {
         this.asteroids = [];
-        const baseCount = 4;
-        const count = Math.min(baseCount + waveNum - 1, 10);
+        // As in the arcade original: 4 large asteroids, +2 per wave, at most 11
+        const count = Math.min(4 + 2 * (waveNum - 1), 11);
+        this.maxRocksForUfo = Math.min(10, this.maxRocksForUfo + 1);
         const safeRadius = 150;
 
         for (let i = 0; i < count; i++) {
@@ -1258,38 +1386,44 @@
             distPlanet = this.gravityMode ? Math.hypot(x - this.planet.x, y - this.planet.y) : 999;
           } while (dist < safeRadius || (this.gravityMode && distPlanet < this.planet.radius + 85));
 
-          this.asteroids.push(this.createAsteroid(x, y, 'large', waveNum));
+          this.asteroids.push(this.createAsteroid(x, y, 'large'));
         }
 
         this.heartbeatTimer = 0;
+        this.heartbeatGap = 48;
         this.waveTransitionText = `WAVE ${waveNum}`;
         this.waveTransitionTimer = 2.0;
       }
 
-      createAsteroid(x, y, size, waveNum = 1) {
-        let radius = 42;
-        const speedMult = 1.0 + (waveNum - 1) * 0.08;
-        let baseSpeed = 45 * speedMult;
+      // Velocity works like the arcade original: each axis gets a random nudge of
+      // -16..+15 arcade units added to the parent's velocity (0 for a new wave), then
+      // is clamped to 6..31 units in either direction. Every size shares that range,
+      // and speed doesn't increase with the wave number.
+      createAsteroid(x, y, size, parent = null) {
+        // Drawn size matches the arcade hit size (132 / 72 / 42 collision units)
+        let hitSize = 132;
         let points = 20;
-
         if (size === 'medium') {
-          radius = 24;
-          baseSpeed = 80 * speedMult;
+          hitSize = 72;
           points = 50;
         } else if (size === 'small') {
-          radius = 13;
-          baseSpeed = 130 * speedMult;
+          hitSize = 42;
           points = 100;
         }
+        const radius = hitSize * HIT_UNIT;
 
-        const angle = Math.random() * Math.PI * 2;
-        const speed = baseSpeed * (0.8 + Math.random() * 0.4);
+        const axisVelocity = (parentVel) => {
+          let units = Math.round(parentVel / ARCADE_VEL_UNIT) + Math.floor(Math.random() * 32) - 16;
+          if (units >= 0) units = Math.min(31, Math.max(6, units));
+          else units = Math.max(-31, Math.min(-6, units));
+          return units * ARCADE_VEL_UNIT;
+        };
 
         const numVertices = 10 + Math.floor(Math.random() * 4);
         const vertices = [];
         for (let i = 0; i < numVertices; i++) {
           const vertAngle = (i / numVertices) * Math.PI * 2;
-          const variance = 0.75 + Math.random() * 0.5;
+          const variance = 0.8 + Math.random() * 0.4;
           vertices.push({
             angle: vertAngle,
             radiusOffset: radius * variance
@@ -1299,10 +1433,11 @@
         return {
           x,
           y,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
+          vx: axisVelocity(parent ? parent.vx : 0),
+          vy: axisVelocity(parent ? parent.vy : 0),
           size,
           radius,
+          hitSize,
           points,
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 1.8,
@@ -1311,26 +1446,27 @@
       }
 
       fireBullet() {
-        if (!this.ship || this.ship.deadTimer > 0) return;
+        if (!this.ship || this.ship.deadTimer > 0 || this.ship.hyperTimer > 0) return;
         if (this.bullets.length >= 4) return;
 
         const tipX = this.ship.x + Math.cos(this.ship.angle) * 14;
         const tipY = this.ship.y + Math.sin(this.ship.angle) * 14;
-        const bulletSpeed = 650;
-
         this.bullets.push({
           x: tipX,
           y: tipY,
-          vx: Math.cos(this.ship.angle) * bulletSpeed + this.ship.vx * 0.25,
-          vy: Math.sin(this.ship.angle) * bulletSpeed + this.ship.vy * 0.25,
-          life: 1.1
+          ...bulletVelocity(this.ship.angle, this.ship.vx, this.ship.vy),
+          life: BULLET_LIFE
         });
 
         this.sound.playLaser();
       }
 
+      // Arcade hyperspace: the ship vanishes for 48 frames (0.8 s), then reappears at a
+      // random spot. It can fail: 1 time in 4 the roll lands in a risky band, and then
+      // the jump is fatal when few asteroids remain (always with 4 or fewer, never with
+      // 19 or more), so the overall risk is 0-25%.
       hyperspace() {
-        if (!this.ship || this.ship.deadTimer > 0) return;
+        if (!this.ship || this.ship.deadTimer > 0 || this.ship.hyperTimer > 0) return;
         this.sound.playHyperspace();
 
         this.createParticleBurst(this.ship.x, this.ship.y, 20, '#a855f7');
@@ -1351,30 +1487,112 @@
         this.ship.y = targetY;
         this.ship.vx = 0;
         this.ship.vy = 0;
-        this.ship.invulnerable = 1.0;
+        this.ship.hyperTimer = 48 / 60;
 
+        const roll = Math.floor(Math.random() * 32);
+        this.ship.hyperDoomed = roll >= 24 && (roll & 7) * 2 + 4 >= this.asteroids.length;
+      }
+
+      // Called when the hyperspace timer runs out
+      exitHyperspace() {
+        if (this.ship.hyperDoomed) {
+          this.ship.hyperDoomed = false;
+          this.addFloatingText(this.ship.x, this.ship.y - 25, 'HYPERSPACE FAILED', '#c084fc');
+          this.onShipDeath();
+          return;
+        }
         this.createParticleBurst(this.ship.x, this.ship.y, 25, '#c084fc');
       }
 
+      // Saucer behavior follows the arcade original (timers are in 4-frame ticks):
+      // - Appears when ufoSpawnTimer runs out. It starts at 146 ticks (~9.7 s), and each
+      //   saucer shortens the reload by 6, down to 32 (~2.1 s). It only counts down while
+      //   the ship is on screen. If an asteroid was destroyed in the last 80 ticks (~5.3 s),
+      //   a saucer only comes once fewer than maxRocksForUfo asteroids remain (5, +1 per
+      //   wave, up to 10); otherwise it retries every 18 ticks.
+      // - The first 3 are large. After that it's large if a random byte is at most half
+      //   the reload, and always small at 30,000+ points.
+      // - Crosses at 16 units (~117 px/s) from a random side; every 128 frames it moves
+      //   up, down or straight (straight twice as likely); wraps vertically.
+      // - First shot after 18 ticks, then every 10 (~0.67 s), with at most 2 bullets out,
+      //   and holds fire while the ship is respawning or in hyperspace. Large saucers
+      //   shoot in random directions. Small ones aim at the ship (correcting for half
+      //   their own velocity, not across the screen wrap), off by up to 16/256 of a turn
+      //   (±22°), or 8/256 (±11°) from 35,000 points.
+      saucerTick() {
+        if (!this.ufo) {
+          if (!this.isShipActive()) return;
+          if (this.asteroidHitTimer > 0) this.asteroidHitTimer--;
+          if (--this.ufoSpawnTimer > 0) return;
+          this.ufoSpawnTimer = 18;
+          if (this.asteroidHitTimer > 0 &&
+              (this.asteroids.length === 0 || this.asteroids.length >= this.maxRocksForUfo)) return;
+          if (this.saucerReload - 6 >= 32) this.saucerReload -= 6;
+          this.spawnUfo();
+          return;
+        }
+
+        if (--this.ufo.dirTicks <= 0) {
+          this.ufo.dirTicks = 32;
+          this.ufo.vy = [-16, 0, 0, 16][Math.floor(Math.random() * 4)] * ARCADE_VEL_UNIT;
+        }
+
+        if (!this.isShipActive()) return;
+        if (--this.ufo.shootCooldown > 0) return;
+        this.ufo.shootCooldown = 10;
+        if (this.ufoBullets.length >= 2) return;
+
+        let dir; // in 256ths of a turn
+        if (this.ufo.isSmall) {
+          // Offsets in units of 64 position units (~7.8 px), minus half the saucer's velocity
+          const toUnits = 8192 / 1000 / 64;
+          const dx = (this.ship.x - this.ufo.x) * toUnits - this.ufo.vx / ARCADE_VEL_UNIT / 2;
+          const dy = (this.ship.y - this.ufo.y) * toUnits - this.ufo.vy / ARCADE_VEL_UNIT / 2;
+          const aim = Math.round(Math.atan2(dy, dx) / (2 * Math.PI) * 256);
+          const error = this.score >= 35000 ? Math.floor(Math.random() * 16) - 8 : Math.floor(Math.random() * 32) - 16;
+          dir = aim + error;
+        } else {
+          dir = Math.floor(Math.random() * 256);
+        }
+
+        this.ufoBullets.push({
+          x: this.ufo.x,
+          y: this.ufo.y,
+          ...bulletVelocity(dir / 256 * Math.PI * 2, this.ufo.vx, this.ufo.vy),
+          life: BULLET_LIFE
+        });
+        this.sound.playLaser();
+      }
+
       spawnUfo() {
-        const isSmall = this.wave >= 3 || this.score > 5000 ? Math.random() < 0.6 : false;
-        const startFromLeft = Math.random() < 0.5;
-        const y = Math.random() * (this.height - 180) + 90;
-        const speed = isSmall ? 180 : 120;
+        let isSmall = false;
+        if (this.saucerReload < 128) {
+          isSmall = this.score >= 30000 || Math.floor(Math.random() * 256) > (this.saucerReload >> 1);
+        }
+        const fromLeft = Math.random() < 0.5;
 
         this.ufo = {
-          x: startFromLeft ? -20 : this.width + 20,
-          y,
-          vx: startFromLeft ? speed : -speed,
-          vy: (Math.random() - 0.5) * 40,
+          x: fromLeft ? 0 : this.width - 0.001,
+          y: Math.random() * this.height,
+          vx: (fromLeft ? 16 : -16) * ARCADE_VEL_UNIT,
+          vy: 0,
           isSmall,
           radius: isSmall ? 12 : 20,
+          hitSize: isSmall ? 42 : 72,
+          hitterSize: isSmall ? 19 : 37,
           points: isSmall ? 1000 : 200,
-          shootCooldown: 1.2 + Math.random() * 0.8,
-          dirChangeTimer: 2.0
+          shootCooldown: 18,
+          dirTicks: 1 + Math.floor(Math.random() * 32)
         };
 
         this.sound.startUfoSiren(isSmall);
+      }
+
+      // Saucer gone (flew off or destroyed): the next one comes after the reload time
+      removeUfo() {
+        this.sound.stopUfoSiren();
+        this.ufo = null;
+        this.ufoSpawnTimer = this.saucerReload;
       }
 
       createParticleBurst(x, y, count, color = null, maxSpeed = 160) {
@@ -1434,7 +1652,7 @@
         this.createParticleBurst(this.ship.x, this.ship.y, 45, '#ef4444', 240);
 
         this.lives--;
-        this.ship.deadTimer = 2.0;
+        this.ship.deadTimer = 129 / 60; // arcade respawn delay: 129 frames
 
         if (this.lives <= 0) {
           this.triggerGameOver();
@@ -1474,87 +1692,65 @@
       update(dt) {
         if (this.state !== 'PLAYING') return;
 
-        // Wave cleared check
-        if (this.asteroids.length === 0 && !this.ufo) {
-          this.wave++;
-          this.createWave(this.wave);
-          this.sound.playExtraLife();
+        // Wave cleared: like the arcade original, wait 127 frames (~2.1 s) after the last
+        // asteroid, and for any saucer to leave, before the next wave
+        if (this.asteroids.length === 0) {
+          if (this.nextWaveTimer === null) this.nextWaveTimer = 127 / 60;
+          this.nextWaveTimer -= dt;
+          if (this.nextWaveTimer <= 0 && !this.ufo) {
+            this.nextWaveTimer = null;
+            this.wave++;
+            this.createWave(this.wave);
+            this.sound.playExtraLife();
+          }
         }
 
         if (this.waveTransitionTimer > 0) {
           this.waveTransitionTimer -= dt;
         }
 
-        // Heartbeat rhythm accelerates as remaining asteroids decrease
-        const totalAsteroids = Math.max(1, this.asteroids.length);
-        const targetInterval = Math.max(0.2, Math.min(1.0, totalAsteroids * 0.08));
-        this.heartbeatTimer += dt;
-        if (this.heartbeatTimer >= targetInterval) {
+        // Heartbeat, as in the arcade original: each beat is 4 frames on, then a gap that
+        // starts at 48 frames each wave and shrinks by 1 every 64 frames, down to 8. So it
+        // goes from ~0.87 s to 0.2 s per beat over ~43 s, alternating two pitches. Silent
+        // between waves and while the ship is exploding or respawning (not in hyperspace).
+        this.heartbeatSpeedupTimer += dt;
+        while (this.heartbeatSpeedupTimer >= 64 / 60) {
+          this.heartbeatSpeedupTimer -= 64 / 60;
+          if (this.heartbeatGap > 8) this.heartbeatGap--;
+        }
+        if (this.asteroids.length === 0 || !this.ship || this.ship.deadTimer > 0) {
           this.heartbeatTimer = 0;
-          this.sound.playHeartbeat(this.heartbeatStep);
-          this.heartbeatStep = (this.heartbeatStep + 1) % 2;
+        } else {
+          this.heartbeatTimer += dt;
+          if (this.heartbeatTimer >= (4 + this.heartbeatGap) / 60) {
+            this.heartbeatTimer = 0;
+            this.sound.playHeartbeat(this.heartbeatStep);
+            this.heartbeatStep = (this.heartbeatStep + 1) % 2;
+          }
         }
 
-        // UFO Spawning & Movement
-        if (!this.ufo) {
-          this.ufoSpawnTimer -= dt;
-          if (this.ufoSpawnTimer <= 0) {
-            this.spawnUfo();
-            this.ufoSpawnTimer = 25 + Math.random() * 15;
-          }
-        } else {
+        // Saucer logic (arcade timing: every 4th frame)
+        this.saucerTickAcc += dt;
+        while (this.saucerTickAcc >= SAUCER_TICK) {
+          this.saucerTickAcc -= SAUCER_TICK;
+          this.saucerTick();
+        }
+
+        if (this.ufo) {
           const ufoDist = this.applyGravity(this.ufo, dt, 0.55, 15);
           if (ufoDist < this.planet.radius + this.ufo.radius) {
             // Crashing into the planet neither scores nor costs points
             this.destroyUfo(false);
             this.addFloatingText(this.planet.x, this.planet.y, "UFO CRASHED!", "#38bdf8");
           }
-
-          if (this.ufo) {
-            this.ufo.x += this.ufo.vx * dt;
-            this.ufo.y += this.ufo.vy * dt;
-
-            this.ufo.dirChangeTimer -= dt;
-            if (this.ufo.dirChangeTimer <= 0) {
-              this.ufo.dirChangeTimer = 1.5 + Math.random() * 2.0;
-              this.ufo.vy = (Math.random() - 0.5) * 80;
-            }
-
-            if (this.ufo.y < 40) { this.ufo.y = 40; this.ufo.vy = Math.abs(this.ufo.vy); }
-            if (this.ufo.y > this.height - 40) { this.ufo.y = this.height - 40; this.ufo.vy = -Math.abs(this.ufo.vy); }
-
-            if ((this.ufo.vx > 0 && this.ufo.x > this.width + 40) ||
-                (this.ufo.vx < 0 && this.ufo.x < -40)) {
-              this.sound.stopUfoSiren();
-              this.ufo = null;
-            } else {
-              this.ufo.shootCooldown -= dt;
-              if (this.ufo.shootCooldown <= 0) {
-                this.ufo.shootCooldown = this.ufo.isSmall ? 1.4 + Math.random() * 0.6 : 1.8 + Math.random() * 0.8;
-                const bulletSpeed = 320;
-                let shootAngle;
-                if (this.ship && this.ship.deadTimer <= 0) {
-                  // Small saucers lead the target and tighten their aim as the score
-                  // climbs (about ±7° at the start, ±2° from 40,000 points). Large
-                  // saucers aim at where the ship is now, with ±12° of spread.
-                  const lead = this.ufo.isSmall;
-                  const spread = lead ? 0.12 - 0.09 * Math.min(1, this.score / 40000) : 12 * Math.PI / 180;
-                  shootAngle = this.aimAtShip(this.ufo.x, this.ufo.y, bulletSpeed, lead) + (Math.random() - 0.5) * 2 * spread;
-                } else {
-                  shootAngle = Math.random() * Math.PI * 2;
-                }
-
-                this.ufoBullets.push({
-                  x: this.ufo.x,
-                  y: this.ufo.y,
-                  vx: Math.cos(shootAngle) * bulletSpeed,
-                  vy: Math.sin(shootAngle) * bulletSpeed,
-                  life: 1.8
-                });
-                this.sound.playLaser();
-              }
-            }
-          }
+        }
+        if (this.ufo) {
+          this.ufo.x += this.ufo.vx * dt;
+          this.ufo.y += this.ufo.vy * dt;
+          // Wraps top to bottom, and leaves for good at a side edge
+          if (this.ufo.y < 0) this.ufo.y += this.height;
+          else if (this.ufo.y >= this.height) this.ufo.y -= this.height;
+          if (this.ufo.x < 0 || this.ufo.x >= this.width) this.removeUfo();
         }
 
         // Ship Update
@@ -1562,32 +1758,24 @@
           if (this.ship.deadTimer > 0) {
             this.ship.deadTimer -= dt;
             if (this.ship.deadTimer <= 0 && this.lives > 0) {
-              this.spawnShip();
+              // Like the arcade original, wait until the spawn area is clear
+              if (this.isSpawnAreaClear()) this.spawnShip();
+              else this.ship.deadTimer = 0.05;
             }
+          } else if (this.ship.hyperTimer > 0) {
+            this.ship.hyperTimer -= dt;
+            if (this.ship.hyperTimer <= 0) this.exitHyperspace();
           } else {
-            // Rotation eases in from 30% to full speed over 0.12 s so taps give fine
-            // aiming nudges; it still stops instantly on release (no spin momentum)
-            const rotSpeed = 4.2;
-            const turnDir = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
-            if (turnDir !== this.ship.turnDir) {
-              this.ship.turnDir = turnDir;
-              this.ship.turnHold = 0;
-            }
-            if (turnDir !== 0) {
-              this.ship.turnHold += dt;
-              const ease = Math.min(1, 0.3 + 0.7 * this.ship.turnHold / 0.12);
-              this.ship.angle += turnDir * rotSpeed * ease * dt;
-            }
+            // Constant turn rate with no spin momentum, as in the arcade original:
+            // 3/256 of a turn per frame, about 4.4 rad/s
+            const rotSpeed = 3 / 256 * 2 * Math.PI * 60;
+            if (this.keys.left) this.ship.angle -= rotSpeed * dt;
+            if (this.keys.right) this.ship.angle += rotSpeed * dt;
 
             if (this.keys.thrust) {
-              // Engine power eases in from 30% to full over 0.15 s
-              this.ship.thrustHold += dt;
-              const ease = Math.min(1, 0.3 + 0.7 * this.ship.thrustHold / 0.15);
-              const accel = 350 * ease;
-              this.ship.vx += Math.cos(this.ship.angle) * accel * dt;
-              this.ship.vy += Math.sin(this.ship.angle) * accel * dt;
+              this.ship.vx += Math.cos(this.ship.angle) * SHIP_THRUST * dt;
+              this.ship.vy += Math.sin(this.ship.angle) * SHIP_THRUST * dt;
             } else {
-              this.ship.thrustHold = 0;
               // Friction while coasting, matching the 1979 arcade code: it removes 1/128
               // of the velocity every other frame, about 21% per second (~3 s half-life).
               // Off in gravity mode so orbits and slingshots don't decay into the planet.
@@ -1614,13 +1802,9 @@
               }
             }
 
-            // Terminal speed clamp
-            const speed = Math.hypot(this.ship.vx, this.ship.vy);
-            const maxSpeed = 480;
-            if (speed > maxSpeed) {
-              this.ship.vx = (this.ship.vx / speed) * maxSpeed;
-              this.ship.vy = (this.ship.vy / speed) * maxSpeed;
-            }
+            // Top speed, clamped per axis like the arcade original
+            this.ship.vx = Math.max(-SHIP_MAX_AXIS, Math.min(SHIP_MAX_AXIS, this.ship.vx));
+            this.ship.vy = Math.max(-SHIP_MAX_AXIS, Math.min(SHIP_MAX_AXIS, this.ship.vy));
 
             this.ship.x += this.ship.vx * dt;
             this.ship.y += this.ship.vy * dt;
@@ -1721,115 +1905,96 @@
         }
       }
 
+      // Collision rules and hit sizes follow the arcade original (see arcadeHit): your
+      // bullets hit asteroids, the saucer and your own ship; saucers and their bullets
+      // hit your ship and asteroids (no points for those asteroids); your ship hits
+      // asteroids, breaking and scoring them as you die.
       checkCollisions() {
+        const shipVulnerable = () => this.isShipActive() && this.ship.invulnerable <= 0;
+        const hitAsteroid = (x, y, extra = 0) =>
+          this.asteroids.findIndex((a) => arcadeHit(x, y, a.x, a.y, a.hitSize + extra));
+
         for (let bi = this.bullets.length - 1; bi >= 0; bi--) {
           const b = this.bullets[bi];
-          for (let ai = this.asteroids.length - 1; ai >= 0; ai--) {
-            const a = this.asteroids[ai];
-            if (Math.hypot(b.x - a.x, b.y - a.y) < a.radius) {
-              this.bullets.splice(bi, 1);
-              this.destroyAsteroid(ai);
-              break;
-            }
+          const ai = hitAsteroid(b.x, b.y);
+          if (ai >= 0) {
+            this.bullets.splice(bi, 1);
+            this.destroyAsteroid(ai);
+          } else if (this.ufo && arcadeHit(b.x, b.y, this.ufo.x, this.ufo.y, this.ufo.hitSize)) {
+            this.bullets.splice(bi, 1);
+            this.destroyUfo();
+          } else if (shipVulnerable() && arcadeHit(b.x, b.y, this.ship.x, this.ship.y, this.ship.hitSize)) {
+            // A shot that wraps around the screen can hit its own ship
+            this.bullets.splice(bi, 1);
+            this.addFloatingText(this.ship.x, this.ship.y - 25, 'OWN SHOT!', '#ef4444');
+            this.onShipDeath();
+          }
+        }
+
+        for (let bi = this.ufoBullets.length - 1; bi >= 0; bi--) {
+          const b = this.ufoBullets[bi];
+          const ai = hitAsteroid(b.x, b.y);
+          if (shipVulnerable() && arcadeHit(b.x, b.y, this.ship.x, this.ship.y, this.ship.hitSize)) {
+            this.ufoBullets.splice(bi, 1);
+            this.onShipDeath();
+          } else if (ai >= 0) {
+            this.ufoBullets.splice(bi, 1);
+            this.destroyAsteroid(ai, false);
           }
         }
 
         if (this.ufo) {
-          for (let bi = this.bullets.length - 1; bi >= 0; bi--) {
-            const b = this.bullets[bi];
-            if (Math.hypot(b.x - this.ufo.x, b.y - this.ufo.y) < this.ufo.radius) {
-              this.bullets.splice(bi, 1);
-              this.destroyUfo();
-              break;
-            }
+          const ai = hitAsteroid(this.ufo.x, this.ufo.y, this.ufo.hitterSize);
+          if (ai >= 0) {
+            this.destroyAsteroid(ai, false);
+            this.destroyUfo(false);
           }
         }
 
-        if (this.ship && this.ship.deadTimer <= 0 && this.ship.invulnerable <= 0) {
-          for (let bi = this.ufoBullets.length - 1; bi >= 0; bi--) {
-            const b = this.ufoBullets[bi];
-            if (Math.hypot(b.x - this.ship.x, b.y - this.ship.y) < this.ship.radius + 3) {
-              this.ufoBullets.splice(bi, 1);
-              this.onShipDeath();
-              break;
-            }
-          }
-        }
-
-        if (this.ship && this.ship.deadTimer <= 0 && this.ship.invulnerable <= 0) {
-          for (const a of this.asteroids) {
-            if (Math.hypot(this.ship.x - a.x, this.ship.y - a.y) < this.ship.radius + a.radius * 0.85) {
-              this.onShipDeath();
-              break;
-            }
-          }
-        }
-
-        if (this.ship && this.ufo && this.ship.deadTimer <= 0 && this.ship.invulnerable <= 0) {
-          if (Math.hypot(this.ship.x - this.ufo.x, this.ship.y - this.ufo.y) < this.ship.radius + this.ufo.radius) {
-            this.destroyUfo();
+        if (shipVulnerable()) {
+          const ai = hitAsteroid(this.ship.x, this.ship.y, this.ship.hitterSize);
+          if (ai >= 0) {
+            this.destroyAsteroid(ai);
             this.onShipDeath();
           }
         }
+
+        if (this.ufo && shipVulnerable() &&
+            arcadeHit(this.ufo.x, this.ufo.y, this.ship.x, this.ship.y, this.ship.hitSize + this.ufo.hitterSize)) {
+          this.destroyUfo();
+          this.onShipDeath();
+        }
       }
 
-      destroyAsteroid(index) {
+      destroyAsteroid(index, awardPoints = true) {
         const a = this.asteroids[index];
         this.asteroids.splice(index, 1);
+        this.asteroidHitTimer = 80; // holds back saucers while you're busy (see saucerTick)
 
-        this.score += a.points;
         this.sound.playExplosion(a.size);
         this.createParticleBurst(a.x, a.y, a.size === 'large' ? 18 : (a.size === 'medium' ? 12 : 8));
-        this.addFloatingText(a.x, a.y, `+${a.points}`);
-
-        if (a.size === 'large') {
-          this.asteroids.push(this.createAsteroid(a.x, a.y, 'medium', this.wave));
-          this.asteroids.push(this.createAsteroid(a.x, a.y, 'medium', this.wave));
-        } else if (a.size === 'medium') {
-          this.asteroids.push(this.createAsteroid(a.x, a.y, 'small', this.wave));
-          this.asteroids.push(this.createAsteroid(a.x, a.y, 'small', this.wave));
+        if (awardPoints) {
+          this.score += a.points;
+          this.addFloatingText(a.x, a.y, `+${a.points}`);
         }
-      }
 
-      // Angle from (x, y) toward the ship along the shortest path across the screen
-      // wrap. With lead, aims where a bullet at bulletSpeed will meet the ship if it
-      // keeps its current velocity.
-      aimAtShip(x, y, bulletSpeed, lead) {
-        let dx = this.ship.x - x;
-        let dy = this.ship.y - y;
-        if (Math.abs(dx) > this.width / 2) dx -= Math.sign(dx) * this.width;
-        if (Math.abs(dy) > this.height / 2) dy -= Math.sign(dy) * this.height;
-
-        if (lead) {
-          // Solve |d + v t| = bulletSpeed * t for the earliest t > 0
-          const { vx, vy } = this.ship;
-          const a = vx * vx + vy * vy - bulletSpeed * bulletSpeed;
-          const b = 2 * (dx * vx + dy * vy);
-          const c = dx * dx + dy * dy;
-          const disc = b * b - 4 * a * c;
-          if (Math.abs(a) > 1e-6 && disc >= 0) {
-            const sq = Math.sqrt(disc);
-            const times = [(-b - sq) / (2 * a), (-b + sq) / (2 * a)].filter((t) => t > 0);
-            if (times.length) {
-              const t = Math.min(...times);
-              dx += vx * t;
-              dy += vy * t;
-            }
-          }
+        // Two fragments, but the arcade original has room for only 27 asteroids at once:
+        // a fragment that doesn't fit is never created (the points still count)
+        const fragmentSize = { large: 'medium', medium: 'small' }[a.size];
+        for (let i = 0; i < 2 && fragmentSize && this.asteroids.length < MAX_ASTEROIDS; i++) {
+          this.asteroids.push(this.createAsteroid(a.x, a.y, fragmentSize, a));
         }
-        return Math.atan2(dy, dx);
       }
 
       destroyUfo(awardPoints = true) {
         if (!this.ufo) return;
-        this.sound.stopUfoSiren();
         this.sound.playExplosion('medium');
         this.createParticleBurst(this.ufo.x, this.ufo.y, 25, '#38bdf8');
         if (awardPoints) {
           this.score += this.ufo.points;
           this.addFloatingText(this.ufo.x, this.ufo.y, `+${this.ufo.points}`, '#38bdf8');
         }
-        this.ufo = null;
+        this.removeUfo();
       }
 
       // --- Rendering Loop ---
@@ -1952,7 +2117,7 @@
         }
 
         // Draw Player Ship
-        if (this.ship && this.ship.deadTimer <= 0) {
+        if (this.isShipActive()) {
           ctx.save();
           ctx.translate(this.ship.x, this.ship.y);
           ctx.rotate(this.ship.angle);
@@ -2072,20 +2237,21 @@
         // Each HUD group is scaled around its own corner/edge anchor
         const s = this.hudScale || 1;
 
+        // Score at the top left (above the remaining ships), high score centered
         ctx.save();
-        ctx.translate(this.width / 2, 0);
         ctx.scale(s, s);
-        ctx.textAlign = 'center';
-        ctx.fillText(this.score.toString().padStart(2, '0'), 0, 42);
+        ctx.textAlign = 'left';
+        ctx.fillText(this.score.toString().padStart(2, '0'), 30, 42);
         ctx.restore();
 
         ctx.font = "14px 'Press Start 2P', monospace";
         ctx.fillStyle = '#e2e8f0';
 
         ctx.save();
+        ctx.translate(this.width / 2, 0);
         ctx.scale(s, s);
-        ctx.textAlign = 'left';
-        ctx.fillText(`HIGH: ${Math.max(this.score, this.highScore).toLocaleString()}`, 30, 42);
+        ctx.textAlign = 'center';
+        ctx.fillText(`HI: ${Math.max(this.score, this.highScore).toLocaleString()}`, 0, 40);
         ctx.restore();
 
         ctx.save();

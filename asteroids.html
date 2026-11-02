@@ -677,23 +677,28 @@
     ];
     let currentThemeIdx = 0;
 
+    // The arcade original runs one game frame every 4 timer interrupts: a 12.096 MHz
+    // crystal / 4096 / 12 = 246.1 Hz, so 61.52 frames per second (MAME's asteroid.cpp
+    // uses the same rate). All arcade frame counts and per-frame rates convert with this.
+    const ARCADE_FPS = 12096000 / 4096 / 12 / 4;
+
     // One arcade velocity unit in px/s. The original screen is 8192 position units
-    // wide (vs our 1000 px) and velocities are applied once per ~60 Hz frame.
-    const ARCADE_VEL_UNIT = 1000 / 8192 * 60;
+    // wide (vs our 1000 px) and velocities are applied once per frame.
+    const ARCADE_VEL_UNIT = 1000 / 8192 * ARCADE_FPS;
 
     // The arcade original has 27 asteroid slots; fragments that don't fit are dropped
     const MAX_ASTEROIDS = 27;
 
-    // Bullets, as in the arcade original: 63 units (~460 px/s) along the aim direction
+    // Bullets, as in the arcade original: 63 units (~473 px/s) along the aim direction
     // plus the shooter's velocity, each axis clamped to 111 units; they last 72 frames
     const BULLET_SPEED = 63 * ARCADE_VEL_UNIT;
 
-    // Ship thrust: ~1 unit (sin * 2 / 256) every other frame, about 218 px/s². Speed is
-    // clamped per axis to 64 units (~468 px/s), so diagonal flight is faster, as in the original.
-    const SHIP_THRUST = (127 * 2 / 256) * 30 * ARCADE_VEL_UNIT;
+    // Ship thrust: ~1 unit (sin * 2 / 256) every other frame, about 229 px/s². Speed is
+    // clamped per axis to 64 units (~481 px/s), so diagonal flight is faster, as in the original.
+    const SHIP_THRUST = (127 * 2 / 256) * (ARCADE_FPS / 2) * ARCADE_VEL_UNIT;
 
     // The arcade saucer code runs every 4th frame; its timers count these ticks
-    const SAUCER_TICK = 4 / 60;
+    const SAUCER_TICK = 4 / ARCADE_FPS;
     const SHIP_MAX_AXIS = 64 * ARCADE_VEL_UNIT;
 
     // Arcade hit test. Sizes are in arcade collision units (2 position units, ~0.244 px):
@@ -708,7 +713,7 @@
       return dx <= r && dy <= r && dx + dy < 1.5 * r;
     }
     const BULLET_MAX_AXIS = 111 * ARCADE_VEL_UNIT;
-    const BULLET_LIFE = 72 / 60;
+    const BULLET_LIFE = 72 / ARCADE_FPS;
     function bulletVelocity(angle, shooterVx, shooterVy) {
       const clamp = (v) => Math.max(-BULLET_MAX_AXIS, Math.min(BULLET_MAX_AXIS, v));
       return {
@@ -1478,7 +1483,7 @@
         this.sound.playLaser();
       }
 
-      // Arcade hyperspace: the ship vanishes for 48 frames (0.8 s), then reappears at a
+      // Arcade hyperspace: the ship vanishes for 48 frames (0.78 s), then reappears at a
       // random spot. It can fail: 1 time in 4 the roll lands in a risky band, and then
       // the jump is fatal when few asteroids remain (always with 4 or fewer, never with
       // 19 or more), so the overall risk is 0-25%.
@@ -1504,7 +1509,7 @@
         this.ship.y = targetY;
         this.ship.vx = 0;
         this.ship.vy = 0;
-        this.ship.hyperTimer = 48 / 60;
+        this.ship.hyperTimer = 48 / ARCADE_FPS;
 
         const roll = Math.floor(Math.random() * 32);
         this.ship.hyperDoomed = roll >= 24 && (roll & 7) * 2 + 4 >= this.asteroids.length;
@@ -1522,16 +1527,16 @@
       }
 
       // Saucer behavior follows the arcade original (timers are in 4-frame ticks):
-      // - Appears when ufoSpawnTimer runs out. It starts at 146 ticks (~9.7 s), and each
+      // - Appears when ufoSpawnTimer runs out. It starts at 146 ticks (~9.5 s), and each
       //   saucer shortens the reload by 6, down to 32 (~2.1 s). It only counts down while
-      //   the ship is on screen. If an asteroid was destroyed in the last 80 ticks (~5.3 s),
+      //   the ship is on screen. If an asteroid was destroyed in the last 80 ticks (~5.2 s),
       //   a saucer only comes once fewer than maxRocksForUfo asteroids remain (5, +1 per
       //   wave, up to 10); otherwise it retries every 18 ticks.
       // - The first 3 are large. After that it's large if a random byte is at most half
       //   the reload, and always small at 30,000+ points.
-      // - Crosses at 16 units (~117 px/s) from a random side; every 128 frames it moves
+      // - Crosses at 16 units (~120 px/s) from a random side; every 128 frames it moves
       //   up, down or straight (straight twice as likely); wraps vertically.
-      // - First shot after 18 ticks, then every 10 (~0.67 s), with at most 2 bullets out,
+      // - First shot after 18 ticks, then every 10 (~0.65 s), with at most 2 bullets out,
       //   and holds fire while the ship is respawning or in hyperspace. Large saucers
       //   shoot in random directions. Small ones aim at the ship (correcting for half
       //   their own velocity, not across the screen wrap), off by up to 16/256 of a turn
@@ -1669,7 +1674,7 @@
         this.createParticleBurst(this.ship.x, this.ship.y, 45, '#ef4444', 240);
 
         this.lives--;
-        this.ship.deadTimer = 129 / 60; // arcade respawn delay: 129 frames
+        this.ship.deadTimer = 129 / ARCADE_FPS; // arcade respawn delay: 129 frames
 
         if (this.lives <= 0) {
           this.triggerGameOver();
@@ -1709,10 +1714,10 @@
       update(dt) {
         if (this.state !== 'PLAYING') return;
 
-        // Wave cleared: like the arcade original, wait 127 frames (~2.1 s) after the last
+        // Wave cleared: like the arcade original, wait 127 frames (~2.06 s) after the last
         // asteroid, and for any saucer to leave, before the next wave
         if (this.asteroids.length === 0) {
-          if (this.nextWaveTimer === null) this.nextWaveTimer = 127 / 60;
+          if (this.nextWaveTimer === null) this.nextWaveTimer = 127 / ARCADE_FPS;
           this.nextWaveTimer -= dt;
           if (this.nextWaveTimer <= 0 && !this.ufo) {
             this.nextWaveTimer = null;
@@ -1728,18 +1733,18 @@
 
         // Heartbeat, as in the arcade original: each beat is 4 frames on, then a gap that
         // starts at 48 frames each wave and shrinks by 1 every 64 frames, down to 8. So it
-        // goes from ~0.87 s to 0.2 s per beat over ~43 s, alternating two pitches. Silent
+        // goes from ~0.85 s to 0.2 s per beat over ~42 s, alternating two pitches. Silent
         // between waves and while the ship is exploding or respawning (not in hyperspace).
         this.heartbeatSpeedupTimer += dt;
-        while (this.heartbeatSpeedupTimer >= 64 / 60) {
-          this.heartbeatSpeedupTimer -= 64 / 60;
+        while (this.heartbeatSpeedupTimer >= 64 / ARCADE_FPS) {
+          this.heartbeatSpeedupTimer -= 64 / ARCADE_FPS;
           if (this.heartbeatGap > 8) this.heartbeatGap--;
         }
         if (this.asteroids.length === 0 || !this.ship || this.ship.deadTimer > 0) {
           this.heartbeatTimer = 0;
         } else {
           this.heartbeatTimer += dt;
-          if (this.heartbeatTimer >= (4 + this.heartbeatGap) / 60) {
+          if (this.heartbeatTimer >= (4 + this.heartbeatGap) / ARCADE_FPS) {
             this.heartbeatTimer = 0;
             this.sound.playHeartbeat(this.heartbeatStep);
             this.heartbeatStep = (this.heartbeatStep + 1) % 2;
@@ -1784,8 +1789,8 @@
             if (this.ship.hyperTimer <= 0) this.exitHyperspace();
           } else {
             // Constant turn rate with no spin momentum, as in the arcade original:
-            // 3/256 of a turn per frame, about 4.4 rad/s
-            const rotSpeed = 3 / 256 * 2 * Math.PI * 60;
+            // 3/256 of a turn per frame, about 4.5 rad/s
+            const rotSpeed = 3 / 256 * 2 * Math.PI * ARCADE_FPS;
             if (this.keys.left) this.ship.angle -= rotSpeed * dt;
             if (this.keys.right) this.ship.angle += rotSpeed * dt;
 
@@ -1794,10 +1799,10 @@
               this.ship.vy += Math.sin(this.ship.angle) * SHIP_THRUST * dt;
             } else {
               // Friction while coasting, matching the 1979 arcade code: it removes 1/128
-              // of the velocity every other frame, about 21% per second (~3 s half-life).
+              // of the velocity every other frame, about 21% per second (~2.8 s half-life).
               // Off in gravity mode so orbits and slingshots don't decay into the planet.
               if (!this.gravityMode) {
-                const drag = Math.pow(0.79, dt);
+                const drag = Math.pow(127 / 128, dt * ARCADE_FPS / 2);
                 this.ship.vx *= drag;
                 this.ship.vy *= drag;
               }
@@ -2309,11 +2314,11 @@
         this.lastTime = timestamp;
 
         // Planet spins on the start and game over screens too, but freezes while paused.
-        // rotSpeed/pulseSpeed are tuned per 60 fps frame, so scale by elapsed time.
+        // rotSpeed/pulseSpeed are per frame at the arcade frame rate, scaled by elapsed time.
         if (this.gravityMode && this.state !== 'PAUSED') {
           const cfg = GRAVITY_LEVELS[this.gravityLevel];
-          this.planet.rot += cfg.rotSpeed * 60 * dt;
-          this.planet.pulse = (this.planet.pulse + cfg.pulseSpeed * 60 * dt) % (Math.PI * 2);
+          this.planet.rot += cfg.rotSpeed * ARCADE_FPS * dt;
+          this.planet.pulse = (this.planet.pulse + cfg.pulseSpeed * ARCADE_FPS * dt) % (Math.PI * 2);
         }
 
         this.update(dt);

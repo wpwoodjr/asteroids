@@ -11,16 +11,17 @@ window.addEventListener('load', () => setTimeout(() => {
   };
   const fresh = () => { g.startGame(); g.asteroids = []; g.ship.invulnerable = 999; g.resetInput(); };
   const realCreateWave = g.createWave.bind(g);
-  const ROT = 3 / 256 * 2 * Math.PI * 60; // arcade turn rate, ~4.42 rad/s
+  const ROT = 3 / 256 * 2 * Math.PI * ARCADE_FPS; // arcade turn rate, ~4.53 rad/s
+  const DRAG = Math.pow(127 / 128, ARCADE_FPS / 2); // speed kept per second while coasting
   try {
     // Stop the empty field from triggering a new wave
     g.createWave = () => {};
 
-    // Friction: coasting for 1 s from 300 px/s leaves ~237 px/s
+    // Friction: coasting loses 1/128 of the speed every other arcade frame (~21%/s)
     fresh(); g.ship.vx = 300; g.ship.vy = 0; step(1);
-    ok('coasting loses ~21%/s', Math.abs(g.ship.vx - 237) < 2, g.ship.vx.toFixed(1));
+    ok('coasting loses ~21%/s', Math.abs(g.ship.vx - 300 * DRAG) < 0.5 && Math.abs(DRAG - 0.786) < 0.001, g.ship.vx.toFixed(1));
     step(2);
-    ok('~3 s half-life', Math.abs(g.ship.vx - 300 * Math.pow(0.79, 3)) < 2, g.ship.vx.toFixed(1));
+    ok('~2.8 s half-life', Math.abs(g.ship.vx - 300 * Math.pow(DRAG, 3)) < 0.5, g.ship.vx.toFixed(1));
 
     // Thrust is full strength from the first frame
     fresh(); g.ship.angle = 0; g.keys.thrust = true; step(1 / 60);
@@ -30,7 +31,7 @@ window.addEventListener('load', () => setTimeout(() => {
     // Turning: full speed immediately, stops instantly on release
     fresh(); g.ship.angle = 0; g.keys.right = true; step(1 / 60);
     ok('turns at full speed immediately', Math.abs(g.ship.angle - ROT / 60) < 1e-9);
-    ok('turn rate is the arcade 3/256 turn per frame (~4.42 rad/s)', Math.abs(ROT - 4.418) < 0.001, ROT.toFixed(3));
+    ok('turn rate is the arcade 3/256 turn per frame (~4.53 rad/s)', Math.abs(ROT - 4.530) < 0.001, ROT.toFixed(3));
     g.keys.right = false; const a1 = g.ship.angle; step(0.5);
     ok('turn stops instantly on release', g.ship.angle === a1);
     g.keys.left = true; step(1 / 60);
@@ -43,12 +44,12 @@ window.addEventListener('load', () => setTimeout(() => {
     ok('no friction with gravity on', Math.abs(g.ship.vx - 300) < 1e-9, g.ship.vx.toFixed(1));
     delete g.applyGravity; g.setGravityLevel(0, false);
     fresh(); g.ship.vx = 300; g.ship.vy = 0; step(1);
-    ok('friction back when gravity off', Math.abs(g.ship.vx - 237) < 2, g.ship.vx.toFixed(1));
+    ok('friction back when gravity off', Math.abs(g.ship.vx - 300 * DRAG) < 0.5, g.ship.vx.toFixed(1));
 
     // Top speed is still capped under full thrust
     fresh(); g.ship.angle = 0; g.keys.thrust = true; step(5);
-    ok('thrust is ~218 px/s² (arcade)', Math.abs(SHIP_THRUST - 218) < 1, SHIP_THRUST.toFixed(1));
-    ok('top speed along an axis ~468 px/s', Math.abs(g.ship.vx - SHIP_MAX_AXIS) < 1e-6 && Math.abs(SHIP_MAX_AXIS - 468.75) < 0.01, g.ship.vx.toFixed(1));
+    ok('thrust is ~229 px/s² (arcade)', Math.abs(SHIP_THRUST - 229.2) < 0.5, SHIP_THRUST.toFixed(1));
+    ok('top speed along an axis ~481 px/s', Math.abs(g.ship.vx - SHIP_MAX_AXIS) < 1e-6 && Math.abs(SHIP_MAX_AXIS - 64 * ARCADE_VEL_UNIT) < 1e-9, g.ship.vx.toFixed(1));
     g.keys.thrust = false;
     fresh(); g.ship.angle = Math.PI / 4; g.keys.thrust = true; step(5);
     const diag = Math.hypot(g.ship.vx, g.ship.vy);

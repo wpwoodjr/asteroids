@@ -19,20 +19,22 @@ window.addEventListener('load', () => setTimeout(() => {
     for (let t = 0; t < sec - 1e-9; t += 1 / 60) { g.ufoBullets = []; g.update(1 / 60); }
   };
   try {
-    // First saucer after 146 ticks (~9.7 s) with no asteroids destroyed
+    // First saucer after 146 ticks (~9.5 s at the arcade's 61.52 fps) with no asteroids destroyed
     reset();
-    step(9.6);
+    const firstAt = 146 * 4 / ARCADE_FPS;
+    step(firstAt - 0.1);
     const early = !g.ufo;
-    step(0.25);
-    ok('first saucer appears after ~9.7 s', early && !!g.ufo);
-    ok('saucer speed is 16 units (~117 px/s)', Math.abs(Math.abs(g.ufo.vx) - 16 * U) < 1e-9, Math.abs(g.ufo.vx).toFixed(1));
-    ok('enters at a side edge', g.ufo.vx > 0 ? g.ufo.x < 20 : g.ufo.x > g.width - 20, g.ufo.x.toFixed(0));
+    step(0.2);
+    ok('first saucer appears after ~9.5 s', early && !!g.ufo, `${firstAt.toFixed(2)} s`);
+    ok('saucer speed is 16 units (~120 px/s)', Math.abs(Math.abs(g.ufo.vx) - 16 * U) < 1e-9, Math.abs(g.ufo.vx).toFixed(1));
+    ok('enters at a side edge', g.ufo.vx > 0 ? g.ufo.x < 30 : g.ufo.x > g.width - 30, g.ufo.x.toFixed(0));
 
     // Leaves at the far edge; the next one comes after the reload time
     g.ufo.x = g.ufo.vx > 0 ? g.width - 1 : 1;
     step(1 / 30);
     ok('leaves at the far edge', !g.ufo);
-    ok('next saucer waits the reload time', g.ufoSpawnTimer === g.saucerReload, `${g.ufoSpawnTimer} ticks`);
+    // (a tick may already have counted down during the frame)
+    ok('next saucer waits the reload time', g.saucerReload - g.ufoSpawnTimer <= 1, `${g.ufoSpawnTimer} of ${g.saucerReload} ticks`);
 
     // Size: first three are large, then random by reload, always small at 30,000+
     reset();

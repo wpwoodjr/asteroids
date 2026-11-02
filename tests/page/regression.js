@@ -45,7 +45,7 @@ window.addEventListener('load', () => setTimeout(() => {
     // Planet animation uses elapsed time and freezes while paused
     const r0 = g.planet.rot; g.loop(g.lastTime + 1000 / 30);
     const r1 = g.planet.rot; g.lastTime = performance.now();
-    const expected = 2 * [0, 0.012, 0.02, 0.03][g.gravityLevel];
+    const expected = ARCADE_FPS / 30 * [0, 0.012, 0.02, 0.03][g.gravityLevel];
     ok('planet rot uses elapsed time', Math.abs((r1 - r0) - expected) < 1e-6);
     g.togglePause(); const r2 = g.planet.rot; g.loop(g.lastTime + 16);
     ok('planet frozen while paused', g.planet.rot === r2);

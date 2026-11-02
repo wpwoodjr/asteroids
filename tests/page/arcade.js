@@ -3,7 +3,7 @@
 window.addEventListener('load', () => setTimeout(() => {
   const g = window.__asteroidsGameInstance, out = [];
   const ok = (n, c, x = '') => out.push(`${c ? 'PASS' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`);
-  const U = 1000 / 8192 * 60; // px/s per arcade velocity unit
+  const U = ARCADE_VEL_UNIT; // px/s per arcade velocity unit
   const units = (v) => Math.round(v / U);
   const realRandom = Math.random;
   // Run the game for `sec` seconds at 60 fps without saucer fire
@@ -58,7 +58,7 @@ window.addEventListener('load', () => setTimeout(() => {
     g.startGame(); g.ufoSpawnTimer = 999;
     g.ship.angle = 0;
     g.fireBullet();
-    ok('bullet speed from rest is 63 units (~461 px/s)', Math.abs(g.bullets[0].vx - 63 * U) < 1e-6 && Math.abs(g.bullets[0].vy) < 1e-6,
+    ok('bullet speed from rest is 63 units (~473 px/s)', Math.abs(g.bullets[0].vx - 63 * U) < 1e-6 && Math.abs(g.bullets[0].vy) < 1e-6,
        g.bullets[0].vx.toFixed(1));
     g.bullets = [];
     g.ship.vx = 200; g.ship.vy = -100;

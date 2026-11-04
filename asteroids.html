@@ -275,8 +275,8 @@
 
   <!-- Mobile / Touch Controls Overlay (always visible) -->
   <div id="touch-controls" class="w-full max-w-7xl flex items-center justify-between px-1 sm:px-14 md:px-20 mb-6 sm:mb-10 select-none z-20">
-    <!-- Left Hand: Rotation Buttons -->
-    <div class="flex items-center gap-1.5 sm:gap-2">
+    <!-- Left Hand: Rotation & Hyperspace -->
+    <div class="flex items-center gap-1 sm:gap-2">
       <button id="btn-touch-left" class="touch-btn w-[52px] h-[52px] sm:w-[72px] sm:h-[72px] rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
         <span>⟲</span>
         <span class="text-[7px] sm:text-[9px] text-neutral-400 -mt-1 font-arcade">LEFT</span>
@@ -285,21 +285,17 @@
         <span>⟳</span>
         <span class="text-[7px] sm:text-[9px] text-neutral-400 -mt-1 font-arcade">RIGHT</span>
       </button>
-    </div>
-
-    <!-- Middle: Hyperspace & Pause -->
-    <div class="flex items-center gap-1.5 sm:gap-2">
       <button id="btn-touch-hyperspace" class="touch-btn w-14 h-12 sm:w-20 rounded-lg bg-neutral-900/80 border border-purple-500/60 text-purple-300 flex flex-col items-center justify-center text-[9px] sm:text-xs leading-tight font-arcade active:border-purple-400">
         <span>HYPER</span>
         <span>SPACE</span>
       </button>
+    </div>
+
+    <!-- Right Hand: Pause, Thrust & Fire (Pause on the inner side, away from Fire) -->
+    <div class="flex items-center gap-1 sm:gap-2">
       <button id="btn-touch-pause" class="touch-btn w-14 h-12 sm:w-20 rounded-lg bg-neutral-900/80 border border-neutral-700 text-neutral-400 flex items-center justify-center text-lg font-bold">
         ⏸
       </button>
-    </div>
-
-    <!-- Right Hand: Thrust & Fire Buttons -->
-    <div class="flex items-center gap-1.5 sm:gap-2">
       <button id="btn-touch-thrust" class="touch-btn w-[52px] h-[52px] sm:w-[72px] sm:h-[72px] rounded-full bg-neutral-900/90 border-2 border-emerald-600 text-emerald-400 flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
         <span>▲</span>
         <span class="text-[6px] sm:text-[8px] text-emerald-400 -mt-1 font-arcade">THRUST</span>

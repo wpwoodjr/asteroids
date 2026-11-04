@@ -76,7 +76,7 @@
   <header class="w-full max-w-7xl flex items-center justify-between px-3 py-1.5 z-20 text-xs sm:text-sm">
     <div class="flex items-center gap-3">
       <span class="font-arcade text-sm sm:text-base tracking-wider vector-glow text-white" id="brand-logo">ASTEROIDS</span>
-      <span class="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] border border-neutral-700 text-neutral-400">ARCADE VECTOR</span>
+      <span class="hidden lg:inline-block px-2 py-0.5 rounded text-[10px] border border-neutral-700 text-neutral-400">ARCADE VECTOR</span>
     </div>
 
     <!-- Quick action buttons -->
@@ -936,7 +936,10 @@
         this.initDOM();
         this.applySavedSettings();
         this.resize();
-        window.addEventListener('resize', () => this.resize());
+        window.addEventListener('resize', () => {
+          this.resize();
+          if (this.fullscreenAppQuery) this.updateFullscreenAvailability();
+        });
         this.setupKeyboard();
         this.setupTouchControls();
 
@@ -988,7 +991,13 @@
         document.getElementById('btn-close-help').addEventListener('click', hideHelp);
         document.getElementById('btn-help-ok').addEventListener('click', hideHelp);
 
-        document.getElementById('btn-start-game').addEventListener('click', () => this.startGame());
+        document.getElementById('btn-start-game').addEventListener('click', () => {
+          // In the installed app, use the browser's fullscreen to cover the whole screen
+          // if Android left part of it black (starting the game is the user gesture
+          // the browser requires)
+          if (this.appWindowShort()) this.toggleFullscreen();
+          this.startGame();
+        });
         document.getElementById('btn-resume-game').addEventListener('click', () => this.togglePause());
         document.getElementById('btn-restart-from-pause').addEventListener('click', () => this.startGame());
         document.getElementById('btn-play-again').addEventListener('click', () => this.startGame());
@@ -1029,12 +1038,20 @@
 
       // The Fullscreen button/F key only make sense when the Fullscreen API is supported
       // (not on iPhone) and we aren't already running as a fullscreen PWA, whose
-      // fullscreen comes from the manifest and can't be toggled from the page.
-      // Keep it while the API itself is fullscreen so the button can still exit.
+      // fullscreen comes from the manifest. Keep it while the API itself is fullscreen
+      // so the button can still exit, and in a fullscreen PWA that Android hasn't given
+      // the whole screen (e.g. it leaves the strip by a camera cutout black).
       canToggleFullscreen() {
         if (!document.fullscreenEnabled) return false;
         if (document.fullscreenElement) return true;
-        return !(this.fullscreenAppQuery && this.fullscreenAppQuery.matches);
+        return !(this.fullscreenAppQuery && this.fullscreenAppQuery.matches) || this.appWindowShort();
+      }
+
+      // Installed app running fullscreen, but its window is shorter or narrower than
+      // the screen
+      appWindowShort() {
+        return !document.fullscreenElement && !!this.fullscreenAppQuery && this.fullscreenAppQuery.matches &&
+          (window.innerHeight < screen.height - 2 || window.innerWidth < screen.width - 2);
       }
 
       updateFullscreenAvailability() {
@@ -2425,7 +2442,7 @@
         const header = document.querySelector('header');
         const modes = ['fullscreen', 'standalone', 'minimal-ui', 'browser'].filter((m) => matchMedia(`(display-mode: ${m})`).matches);
         const lines = [
-          `display-mode: ${modes.join(', ') || '?'}`,
+          `display-mode: ${modes.join(', ') || '?'}, fullscreen element: ${document.fullscreenElement ? 'yes' : 'no'}`,
           `window ${innerWidth}x${innerHeight}, screen ${screen.width}x${screen.height}, dpr ${devicePixelRatio}`,
           `page ${document.documentElement.scrollWidth}x${document.documentElement.scrollHeight}, zoom ${window.visualViewport ? visualViewport.scale.toFixed(2) : '?'}`,
           `safe-area top ${p.paddingTop} right ${p.paddingRight} bottom ${p.paddingBottom} left ${p.paddingLeft}`,

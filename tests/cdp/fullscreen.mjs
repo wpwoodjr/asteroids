@@ -15,6 +15,10 @@ export default async function ({ send, ev, base, sleep }) {
                      addEventListener: (t, f) => listeners.push(f), removeEventListener() {} };
       window.__setDisplayFullscreen = (v) => { fake.matches = v; listeners.forEach((f) => f({ matches: v })); };
       window.matchMedia = (q) => q.includes('display-mode: fullscreen') ? fake : real(q);
+      // The screen matches the window unless a test makes the window short
+      window.__screenExtra = 0;
+      Object.defineProperty(screen, 'height', { get: () => window.innerHeight + window.__screenExtra, configurable: true });
+      Object.defineProperty(screen, 'width', { get: () => window.innerWidth, configurable: true });
     })();` });
   await send('Page.navigate', { url: `${base}/asteroids.html` });
   await sleep(2500);
@@ -33,6 +37,23 @@ export default async function ({ send, ev, base, sleep }) {
     document.documentElement.requestFullscreen = orig;
     return !called;
   })()`));
+
+  // Fullscreen app whose window Android made shorter than the screen (camera cutout strip):
+  // the Full button comes back, and starting the game switches to browser fullscreen
+  await ev(`window.__screenExtra = 56; window.dispatchEvent(new Event('resize'))`);
+  h = await ev(hidden);
+  ok('short fullscreen app window: Full button shown', !h.btn, JSON.stringify(h));
+  ok('starting the game in a short app window goes fullscreen', await ev(`(() => {
+    let called = false;
+    const orig = document.documentElement.requestFullscreen;
+    document.documentElement.requestFullscreen = () => { called = true; return Promise.resolve(); };
+    document.getElementById('btn-start-game').click();
+    document.documentElement.requestFullscreen = orig;
+    return called;
+  })()`));
+  await ev(`window.__screenExtra = 0; window.dispatchEvent(new Event('resize'))`);
+  h = await ev(hidden);
+  ok('full-height fullscreen app window: Full button hidden again', h.btn, JSON.stringify(h));
 
   await ev('__setDisplayFullscreen(false)');
   h = await ev(hidden);

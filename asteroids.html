@@ -31,19 +31,25 @@
       overflow: hidden;
       /* Fill the visible screen. viewport-fit=cover (in the viewport tag) lets the page
          use the whole screen, including the strip beside a camera cutout that Android
-         otherwise leaves black in a fullscreen app; the safe-area padding keeps the
-         controls clear of the cutout itself. */
+         otherwise leaves black in a fullscreen app. The top isn't padded by the cutout's
+         safe area, so the page draws into that strip just as it does in Chrome's own
+         fullscreen; the other sides keep clear of rounded corners and gesture bars. */
       width: 100vw;
       height: 100vh;
       height: 100dvh;
-      padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right))
+      padding: 0.5rem max(0.5rem, env(safe-area-inset-right))
                max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
     }
     @media (min-width: 640px) {
       body {
-        padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+        padding: 1rem max(1rem, env(safe-area-inset-right))
                  max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
       }
+    }
+    /* Probe for reading the safe-area insets in the diagnostics panel */
+    #safe-area-probe {
+      position: fixed; visibility: hidden; pointer-events: none;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
     .font-arcade {
       font-family: 'Press Start 2P', monospace;
@@ -2400,6 +2406,41 @@
         requestAnimationFrame((t) => this.loop(t));
       }
     }
+
+    // Diagnostics: triple-tap (or triple-click) the ASTEROIDS logo to show screen
+    // measurements, for checking layout on a real device
+    (() => {
+      let taps = [];
+      const logo = document.getElementById('brand-logo');
+      logo.addEventListener('pointerdown', () => {
+        const now = performance.now();
+        taps = taps.filter((t) => now - t < 600).concat(now);
+        if (taps.length < 3) return;
+        taps = [];
+        let panel = document.getElementById('diagnostics');
+        if (panel) { panel.remove(); return; }
+        let probe = document.getElementById('safe-area-probe');
+        if (!probe) { probe = document.createElement('div'); probe.id = 'safe-area-probe'; document.body.appendChild(probe); }
+        const p = getComputedStyle(probe);
+        const header = document.querySelector('header');
+        const modes = ['fullscreen', 'standalone', 'minimal-ui', 'browser'].filter((m) => matchMedia(`(display-mode: ${m})`).matches);
+        const lines = [
+          `display-mode: ${modes.join(', ') || '?'}`,
+          `window ${innerWidth}x${innerHeight}, screen ${screen.width}x${screen.height}, dpr ${devicePixelRatio}`,
+          `page ${document.documentElement.scrollWidth}x${document.documentElement.scrollHeight}, zoom ${window.visualViewport ? visualViewport.scale.toFixed(2) : '?'}`,
+          `safe-area top ${p.paddingTop} right ${p.paddingRight} bottom ${p.paddingBottom} left ${p.paddingLeft}`,
+          `header ${Math.round(header.getBoundingClientRect().width)} wide, needs ${header.scrollWidth}`,
+          `root font ${getComputedStyle(document.documentElement).fontSize}`
+        ];
+        panel = document.createElement('pre');
+        panel.id = 'diagnostics';
+        panel.textContent = lines.join('\n');
+        panel.style.cssText = 'position:fixed;left:8px;right:8px;top:40%;z-index:100;margin:0;padding:10px;' +
+          'background:#111c;border:1px solid #888;color:#fff;font:12px monospace;white-space:pre-wrap';
+        panel.addEventListener('pointerdown', () => panel.remove());
+        document.body.appendChild(panel);
+      });
+    })();
 
     function initGame() {
       if (!window.__asteroidsGameInstance) {

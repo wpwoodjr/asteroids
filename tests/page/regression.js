@@ -59,6 +59,12 @@ window.addEventListener('load', () => setTimeout(() => {
     localStorage.removeItem('asteroids_leaderboard');
 
     ok('touch toggle removed', !document.getElementById('btn-touch-toggle'));
+
+    // Fills the whole screen, including beside a camera cutout in a fullscreen app
+    ok('page may use the cutout area (viewport-fit=cover)',
+       /viewport-fit=cover/.test(document.querySelector('meta[name=viewport]').content));
+    ok('page fills the screen without scrolling', document.documentElement.scrollHeight <= innerHeight + 1,
+       `${document.documentElement.scrollHeight} / ${innerHeight}`);
   } catch (e) { out.push('ERROR ' + e.stack); }
   window.__testResults = out;
   window.__testDone = true;

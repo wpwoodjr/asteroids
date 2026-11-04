@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Asteroids - Arcade Vector Space Shooter</title>
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#050508">
@@ -29,6 +29,21 @@
       -webkit-user-select: none;
       touch-action: manipulation;
       overflow: hidden;
+      /* Fill the visible screen. viewport-fit=cover (in the viewport tag) lets the page
+         use the whole screen, including the strip beside a camera cutout that Android
+         otherwise leaves black in a fullscreen app; the safe-area padding keeps the
+         controls clear of the cutout itself. */
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right))
+               max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+    }
+    @media (min-width: 640px) {
+      body {
+        padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+                 max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+      }
     }
     .font-arcade {
       font-family: 'Press Start 2P', monospace;
@@ -49,7 +64,7 @@
     }
   </style>
 </head>
-<body class="w-screen h-screen flex flex-col items-center justify-between p-2 sm:p-4 bg-black select-none">
+<body class="flex flex-col items-center justify-between bg-black select-none">
 
   <!-- Top Bar / Controls & Status -->
   <header class="w-full max-w-7xl flex items-center justify-between px-3 py-1.5 z-20 text-xs sm:text-sm">

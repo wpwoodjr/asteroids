@@ -50,3 +50,24 @@ Options:
 3. **Keep it as is.**
 
 The code is in `createWave()` in `asteroids.html`.
+
+## Black band at the top of the installed app
+
+On the test phone (2152 × 2076 screen), the installed app leaves a black band about 136 pixels tall across the top, by the camera. A Chrome tab after tapping **Full** fills the whole screen.
+
+What the diagnostics panel showed (triple-tap the ASTEROIDS logo), at Chrome's 120% zoom:
+
+| | Window | Fills the screen? |
+| --- | --- | --- |
+| Chrome tab, after Full | 735 × 709 | Yes |
+| Installed app | 735 × 663 | No: 46 px short |
+| Installed app, after Full | 735 × 663 | No: still 46 px short |
+
+All safe-area insets are 0, so the page isn't told about a cutout it could draw into: Android simply gives the installed app a shorter window. Already tried, without effect in the app: `viewport-fit=cover`, safe-area padding, and switching to browser fullscreen on start (reverted).
+
+Options:
+
+1. **Reinstall the app.** A long shot: Android may set these window rules when the app is installed.
+2. **Play in a Chrome tab with Full**, which fills the screen.
+3. **Live with it** in the installed app.
+4. **Check again after Chrome updates**, in case the installed-app behavior changes.

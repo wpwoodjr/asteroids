@@ -33,7 +33,7 @@ The game is a Progressive Web App (PWA). From the [live site](https://wpwoodjr.g
 - **iPhone/iPad (Safari):** Share → **Add to Home Screen**
 - **Desktop Chrome/Edge:** the install icon in the address bar
 
-The installed app opens fullscreen and works offline once you've loaded it online one time. On phones where Android leaves a strip by the camera black, tapping **INSERT COIN / PLAY** switches to full screen to cover it. The offline support only works over `http(s)`, not when you open the file directly.
+The installed app opens fullscreen and works offline once you've loaded it online one time. The offline support only works over `http(s)`, not when you open the file directly.
 
 ## Controls
 
@@ -50,7 +50,7 @@ The installed app opens fullscreen and works offline once you've loaded it onlin
 | `G` | Cycle gravity: Off → Low → Med → High |
 | `C` | Cycle color palette (Classic, Arcade Color, Green Screen, Amber, Deep Space) |
 | `M` | Mute / unmute |
-| `F` | Fullscreen (hidden when the installed app already fills the screen, or on iPhone) |
+| `F` | Fullscreen (hidden in the installed app, which is already fullscreen, and on iPhone) |
 
 On touch devices, use the on-screen buttons below the playfield to rotate, thrust, fire, hyperspace and pause.
 

@@ -33,17 +33,19 @@
          use the whole screen, including the strip beside a camera cutout that Android
          otherwise leaves black in a fullscreen app. The top isn't padded by the cutout's
          safe area, so the page draws into that strip just as it does in Chrome's own
-         fullscreen; the other sides keep clear of rounded corners and gesture bars. */
+         fullscreen; the sides keep clear of rounded corners. At the bottom, only the
+         footer line (about 1.5rem tall) sits in the gesture-bar strip; the touch
+         buttons above it stay clear of it. */
       width: 100vw;
       height: 100vh;
       height: 100dvh;
       padding: 0.5rem max(0.5rem, env(safe-area-inset-right))
-               max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+               max(0.25rem, calc(env(safe-area-inset-bottom) - 1.5rem)) max(0.5rem, env(safe-area-inset-left));
     }
     @media (min-width: 640px) {
       body {
         padding: 1rem max(1rem, env(safe-area-inset-right))
-                 max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+                 max(0.25rem, calc(env(safe-area-inset-bottom) - 1.5rem)) max(1rem, env(safe-area-inset-left));
       }
     }
     /* Probe for reading the safe-area insets in the diagnostics panel */
@@ -310,7 +312,7 @@
   </main>
 
   <!-- Mobile / Touch Controls Overlay (always visible) -->
-  <div id="touch-controls" class="w-full max-w-7xl flex items-center justify-between px-1 sm:px-14 md:px-20 mb-6 sm:mb-10 select-none z-20">
+  <div id="touch-controls" class="w-full max-w-7xl flex items-center justify-between px-1 sm:px-14 md:px-20 mb-1 select-none z-20">
     <!-- Left Hand: Rotation & Hyperspace -->
     <div class="flex items-center gap-1 sm:gap-2">
       <button id="btn-touch-left" class="touch-btn w-[52px] h-[52px] sm:w-[72px] sm:h-[72px] rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">

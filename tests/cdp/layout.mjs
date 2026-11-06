@@ -45,5 +45,19 @@ export default async function ({ send, ev, base, sleep }) {
       ok(`${label}: ${name} overlay ${v.scrolls ? 'scrolls' : 'fits'}`, (v.scrolls || v.fits) && v.scale >= 0.55, `scale ${v.scale.toFixed(2)}`);
     }
   }
+  // Phone outside fullscreen, with a 32 px gesture-bar strip at the bottom: the touch
+  // buttons stay clear of it, and only the footer line uses it
+  await send('Emulation.setDeviceMetricsOverride', { width: 852, height: 718, deviceScaleFactor: 2.4375, mobile: true });
+  await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 32 } });
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  const g = await ev(`(() => {
+    const tc = document.getElementById('touch-controls').getBoundingClientRect(), frame = document.getElementById('game-frame').getBoundingClientRect();
+    return { clear: innerHeight - tc.bottom, frameH: frame.height, fits: document.documentElement.scrollHeight <= innerHeight + 1 };
+  })()`);
+  ok('gesture strip: touch buttons stay clear of it', g.clear >= 32, `${Math.round(g.clear)} px above the bottom`);
+  ok('gesture strip: page still fits', g.fits);
+  ok('gesture strip: playfield uses the freed height', g.frameH >= 530, `${Math.round(g.frameH)} px tall`);
+  await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 0 } });
   return out;
 }

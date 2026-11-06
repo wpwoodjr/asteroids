@@ -1080,6 +1080,14 @@
         frame.style.width = `${Math.floor(frameWidth)}px`;
         frame.style.height = `${Math.floor(frameHeight)}px`;
 
+        // Keep the touch buttons just under the playfield: when the playfield is limited
+        // by width it doesn't reach the bottom of its area, so lift the buttons up to it
+        // (the playfield itself stays where it is; the spare space ends up below them)
+        const touch = document.getElementById('touch-controls');
+        touch.style.transform = '';
+        const gap = touch.getBoundingClientRect().top - frame.getBoundingClientRect().bottom - 8;
+        if (gap > 0) touch.style.transform = `translateY(${-gap}px)`;
+
         const dpr = window.devicePixelRatio || 1;
         this.canvas.width = Math.floor(frameWidth * dpr);
         this.canvas.height = Math.floor(frameHeight * dpr);

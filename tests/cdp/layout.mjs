@@ -23,13 +23,15 @@ export default async function ({ send, ev, base, sleep }) {
         tallestButton: Math.round(lineHeight),
         footerFits: f.scrollWidth <= f.clientWidth + 1,
         pageFits: document.documentElement.scrollWidth <= innerWidth + 1 && document.documentElement.scrollHeight <= innerHeight + 1,
-        mode: h.classList.contains('wrap') ? 'two rows' : h.classList.contains('compact') ? 'compact' : 'full'
+        mode: h.classList.contains('wrap') ? 'two rows' : h.classList.contains('compact') ? 'compact' : 'full',
+        buttonGap: document.getElementById('touch-controls').getBoundingClientRect().top - document.getElementById('game-frame').getBoundingClientRect().bottom
       };
     })()`);
     ok(`${label}: header fits (${r.mode})`, r.headerFits);
     ok(`${label}: no button text wraps`, r.tallestButton <= 40, `tallest button ${r.tallestButton}px`);
     ok(`${label}: footer fits on one line`, r.footerFits);
     ok(`${label}: page fits the screen`, r.pageFits);
+    ok(`${label}: touch buttons sit just under the playfield`, r.buttonGap >= 0 && r.buttonGap <= 12, `${Math.round(r.buttonGap)} px gap`);
     for (const id of ['screen-start', 'screen-help', 'screen-game-over']) {
       const v = await ev(`new Promise((done) => {
         document.querySelectorAll('[id^=screen-]').forEach((o) => o.classList.add('hidden'));

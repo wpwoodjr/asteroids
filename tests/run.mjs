@@ -118,6 +118,7 @@ const TESTS = {
   settings: pageTest('settings.js', ['set', 'check']),
   palettes: pageTest('palettes.js'),
   fullscreen: async (ctx) => (await import('./cdp/fullscreen.mjs')).default(ctx),
+  layout: async (ctx) => (await import('./cdp/layout.mjs')).default(ctx),
   pwa: async (ctx) => (await import('./cdp/pwa.mjs')).default(ctx)
 };
 

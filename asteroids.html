@@ -51,6 +51,15 @@
       position: fixed; visibility: hidden; pointer-events: none;
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
+    /* When the header or footer doesn't fit on one line (larger display scale or zoom),
+       fitChrome() adds .compact: header buttons drop their text labels, and the footer
+       shows its short line instead of the controls list */
+    header.compact .btn-label { display: none !important; }
+    /* Last resort on very narrow screens: let the header wrap onto a second row */
+    header.wrap, header.wrap > div { flex-wrap: wrap; justify-content: center; row-gap: 0.375rem; }
+    footer.compact .footer-long { display: none !important; }
+    footer.compact .footer-short { display: inline !important; }
+    .overlay-fit { transform-origin: center; }
     .font-arcade {
       font-family: 'Press Start 2P', monospace;
     }
@@ -81,34 +90,34 @@
 
     <!-- Quick action buttons -->
     <div class="flex items-center gap-2">
-      <button id="btn-theme" class="px-2.5 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition flex items-center gap-1.5 text-xs" title="Change Vector Color Theme">
+      <button id="btn-theme" class="whitespace-nowrap px-2.5 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition flex items-center gap-1.5 text-xs" title="Change Vector Color Theme">
         <span class="inline-flex items-center gap-0.5" id="theme-indicator" title="Asteroids, ship, saucer">
           <span class="w-2 h-2 rounded-full inline-block bg-white" data-part="rock"></span>
           <span class="w-2 h-2 rounded-full inline-block bg-white" data-part="ship"></span>
           <span class="w-2 h-2 rounded-full inline-block bg-white" data-part="saucer"></span>
         </span>
-        <span id="theme-name">Classic</span>
+        <span id="theme-name" class="btn-label">Classic</span>
       </button>
 
-      <button id="btn-audio" class="px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Toggle Sound (M)">
+      <button id="btn-audio" class="whitespace-nowrap px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Toggle Sound (M)">
         <span id="audio-icon">🔊</span>
-        <span id="audio-status" class="hidden sm:inline">SFX</span>
+        <span id="audio-status" class="btn-label hidden sm:inline">SFX</span>
       </button>
 
-      <button id="btn-gravity" class="px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Cycle Gravity Strength: Off -> Low -> Med -> High (G)">
-        🪐 <span class="hidden sm:inline">Gravity:</span> <span id="gravity-status" class="text-neutral-500 font-bold">OFF</span>
+      <button id="btn-gravity" class="whitespace-nowrap px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Cycle Gravity Strength: Off -> Low -> Med -> High (G)">
+        🪐 <span class="btn-label hidden sm:inline">Gravity:</span> <span id="gravity-status" class="text-neutral-500 font-bold">OFF</span>
       </button>
 
-      <button id="btn-scores" class="px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="View Arcade Leaderboard">
-        🏆 <span class="hidden sm:inline">Scores</span>
+      <button id="btn-scores" class="whitespace-nowrap px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="View Arcade Leaderboard">
+        🏆 <span class="btn-label hidden sm:inline">Scores</span>
       </button>
 
-      <button id="btn-fullscreen" class="px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Toggle Fullscreen Mode (F)">
-        ⛶ <span class="hidden sm:inline">Full</span>
+      <button id="btn-fullscreen" class="whitespace-nowrap px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Toggle Fullscreen Mode (F)">
+        ⛶ <span class="btn-label hidden sm:inline">Full</span>
       </button>
 
-      <button id="btn-help" class="px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs" title="View Controls & Help">
-        ? Help
+      <button id="btn-help" class="whitespace-nowrap px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs" title="View Controls & Help">
+        ?<span class="btn-label"> Help</span>
       </button>
     </div>
   </header>
@@ -121,6 +130,7 @@
 
       <!-- Start / Menu Overlay Screen -->
       <div id="screen-start" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30 transition-opacity duration-200">
+        <div class="overlay-fit w-full flex flex-col items-center">
         <h1 class="font-arcade text-3xl sm:text-5xl md:text-6xl text-white tracking-widest mb-4 vector-glow animate-pulse">ASTEROIDS</h1>
         <p class="font-arcade text-xs sm:text-sm text-neutral-400 mb-6 tracking-wide">ARCADE VECTOR SHOOTER</p>
 
@@ -168,10 +178,12 @@
           INSERT COIN / PLAY
         </button>
         <p class="mt-3 text-xs text-neutral-500">PRESS SPACEBAR OR CLICK TO START</p>
+        </div>
       </div>
 
       <!-- Pause Overlay Screen -->
       <div id="screen-pause" class="hidden absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30">
+        <div class="overlay-fit w-full flex flex-col items-center">
         <h2 class="font-arcade text-3xl sm:text-4xl text-white tracking-widest mb-6 vector-glow">GAME PAUSED</h2>
         <div class="flex flex-col gap-3 w-48">
           <button id="btn-resume-game" class="font-arcade py-2.5 px-4 bg-white text-black text-xs sm:text-sm font-bold rounded hover:bg-neutral-200 active:scale-95 transition">
@@ -181,10 +193,12 @@
             RESTART (R)
           </button>
         </div>
+        </div>
       </div>
 
       <!-- Game Over Screen -->
       <div id="screen-game-over" class="hidden absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30">
+        <div class="overlay-fit w-full flex flex-col items-center">
         <h2 class="font-arcade text-3xl sm:text-5xl text-red-500 tracking-widest mb-3 vector-glow">GAME OVER</h2>
         <div id="new-high-score-banner" class="hidden mb-4 px-3 py-1 bg-yellow-500/20 border border-yellow-500 text-yellow-300 font-arcade text-xs rounded animate-bounce">
           ★ NEW HIGH SCORE! ★
@@ -214,11 +228,12 @@
             🏆 SCORES
           </button>
         </div>
+        </div>
       </div>
 
       <!-- Help / Instructions Modal Screen -->
       <div id="screen-help" class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-40">
-        <div class="max-w-lg w-full bg-neutral-950 border border-neutral-700 rounded-lg p-5 text-neutral-300 text-xs sm:text-sm">
+        <div class="overlay-fit max-w-lg w-full bg-neutral-950 border border-neutral-700 rounded-lg p-5 text-neutral-300 text-xs sm:text-sm">
           <div class="flex justify-between items-center mb-4 border-b border-neutral-800 pb-2">
             <h3 class="font-arcade text-sm sm:text-base text-white vector-glow">HOW TO PLAY</h3>
             <button id="btn-close-help" class="text-neutral-400 hover:text-white font-bold text-lg px-2">✕</button>
@@ -261,7 +276,7 @@
 
       <!-- High Scores / Hall of Fame Modal Screen -->
       <div id="screen-scores" class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-40">
-        <div class="max-w-md w-full bg-neutral-950 border border-neutral-700 rounded-lg p-5 text-neutral-300 text-xs sm:text-sm">
+        <div class="overlay-fit max-w-md w-full bg-neutral-950 border border-neutral-700 rounded-lg p-5 text-neutral-300 text-xs sm:text-sm">
           <div class="flex justify-between items-center mb-4 border-b border-neutral-800 pb-2">
             <h3 class="font-arcade text-sm sm:text-base text-yellow-400 vector-glow flex items-center gap-2">
               <span>🏆</span> ARCADE HALL OF FAME
@@ -330,8 +345,8 @@
 
   <!-- Bottom Legend / Status -->
   <footer class="w-full max-w-7xl text-center py-1 text-[11px] text-neutral-500 font-mono flex items-center justify-between px-3">
-    <span class="hidden sm:inline">CONTROLS: [A/D] Turn &nbsp; [W] Thrust &nbsp; [SPACE] Fire &nbsp; [S/SHIFT] Hyperspace &nbsp; [G] Gravity &nbsp; [P] Pause</span>
-    <span class="sm:hidden text-neutral-400">CLASSIC ARCADE VECTOR</span>
+    <span class="footer-long hidden sm:inline whitespace-nowrap">CONTROLS: [A/D] Turn &nbsp; [W] Thrust &nbsp; [SPACE] Fire &nbsp; [S/SHIFT] Hyperspace &nbsp; [G] Gravity &nbsp; [P] Pause</span>
+    <span class="footer-short sm:hidden text-neutral-400">CLASSIC ARCADE VECTOR</span>
     <span>ASTEROIDS</span>
   </footer>
 
@@ -935,7 +950,10 @@
 
         this.initDOM();
         this.applySavedSettings();
+        this.setupOverlayFit();
         this.resize();
+        // Web fonts change text widths once loaded
+        if (document.fonts) document.fonts.ready.then(() => this.resize());
         window.addEventListener('resize', () => this.resize());
         this.setupKeyboard();
         this.setupTouchControls();
@@ -994,7 +1012,53 @@
         document.getElementById('btn-play-again').addEventListener('click', () => this.startGame());
       }
 
+      // Compact the header/footer if they don't fit on one line; if the header still
+      // doesn't fit, let it wrap onto a second row
+      fitChrome() {
+        const header = document.querySelector('header');
+        header.classList.remove('wrap');
+        for (const el of [header, document.querySelector('footer')]) {
+          el.classList.remove('compact');
+          if (el.scrollWidth > el.clientWidth + 1) el.classList.add('compact');
+        }
+        if (header.scrollWidth > header.clientWidth + 1) header.classList.add('wrap');
+      }
+
+      // Shrink an overlay's content (start, pause, game over, help, scores) to fit the
+      // playfield instead of letting it be cut off
+      fitOverlay(overlay) {
+        const content = overlay.querySelector('.overlay-fit');
+        if (!content || overlay.classList.contains('hidden')) return;
+        const style = getComputedStyle(overlay);
+        const availH = overlay.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        const availW = overlay.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        const s = Math.min(1, availH / content.offsetHeight, availW / content.offsetWidth);
+        // Shrinking below ~55% makes text unreadable; scroll the overlay instead
+        const scroll = s < 0.55;
+        content.style.transform = !scroll && s < 0.999 ? `scale(${s})` : '';
+        overlay.style.overflowY = scroll ? 'auto' : '';
+        overlay.style.justifyContent = scroll ? 'flex-start' : '';
+      }
+
+      setupOverlayFit() {
+        const overlays = ['screen-start', 'screen-pause', 'screen-game-over', 'screen-help', 'screen-scores']
+          .map((id) => document.getElementById(id));
+        // Refit when an overlay is shown or resized, or its content changes size
+        const observer = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const overlay = overlays.find((o) => o === entry.target || o.contains(entry.target));
+            if (overlay) this.fitOverlay(overlay);
+          }
+        });
+        for (const overlay of overlays) {
+          observer.observe(overlay);
+          const content = overlay.querySelector('.overlay-fit');
+          if (content) observer.observe(content);
+        }
+      }
+
       resize() {
+        this.fitChrome();
         const main = document.querySelector('main');
         const frame = document.getElementById('game-frame');
         if (!main || !frame) return;
@@ -1043,6 +1107,7 @@
         const available = this.canToggleFullscreen();
         document.getElementById('btn-fullscreen').classList.toggle('hidden', !available);
         document.getElementById('help-fullscreen-key').classList.toggle('hidden', !available);
+        this.resize(); // showing/hiding Full changes the header's width
       }
 
       toggleFullscreen() {
@@ -1090,6 +1155,7 @@
           dot.style.backgroundColor = theme[dot.dataset.part];
         }
         document.getElementById('theme-name').textContent = theme.name;
+        this.resize(); // the header may need compacting for a longer name
         document.getElementById('brand-logo').style.color = theme.primary;
       }
 
@@ -1106,11 +1172,13 @@
         if (isMuted) {
           icon.textContent = '🔇';
           status.textContent = 'MUTED';
-          status.className = 'hidden sm:inline text-red-400';
+          status.className = 'btn-label hidden sm:inline text-red-400';
+          this.resize(); // the header may need compacting for a longer label
         } else {
           icon.textContent = '🔊';
           status.textContent = 'SFX';
-          status.className = 'hidden sm:inline text-white';
+          status.className = 'btn-label hidden sm:inline text-white';
+          this.resize(); // the header may need compacting for a longer label
           // Restart looping sounds that were skipped while muted
           if (this.state === 'PLAYING') {
             if (this.ufo) this.sound.startUfoSiren(this.ufo.isSmall);
@@ -1135,6 +1203,7 @@
         const status = document.getElementById('gravity-status');
         status.textContent = cfg.label;
         status.className = cfg.className;
+        this.resize(); // the header may need compacting for a longer label
 
         if (!announce) return;
         this.addFloatingText(this.width / 2, this.height / 2 - 65, cfg.msg, cfg.color);

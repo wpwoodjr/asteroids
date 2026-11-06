@@ -87,7 +87,7 @@ The game itself lives in `asteroids.html`. `manifest.webmanifest`, `sw.js` (the 
 
 ## Tests
 
-The `tests/` folder has automated checks for gameplay, physics, mouse input, saved settings, the Fullscreen button, and PWA install and offline support. The runner serves the game locally and drives headless Chromium:
+The `tests/` folder has automated checks for gameplay, arcade rules, physics, sounds, mouse input, saved settings, color palettes, the Fullscreen button, layout at different screen sizes, and PWA install and offline support. The runner serves the game locally and drives headless Chromium:
 
 ```sh
 node tests/run.mjs                 # all tests (Node 22+)

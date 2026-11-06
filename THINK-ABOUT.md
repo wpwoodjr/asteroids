@@ -26,16 +26,6 @@ Options (can be combined):
 
 The code is in `isSpawnAreaClear()` and the ship update in `asteroids.html`.
 
-## Header buttons run off the screen on phones
-
-On phone screens, the row of header buttons (theme, sound, gravity, scores, fullscreen, help) needs about 423 px, plus page padding, so the last buttons are cut off and can't be reached. Measured after removing the CRT button: at 390–430 px wide the Help button is cut off, and at 360 px Fullscreen is too.
-
-Options:
-
-1. **Wrap the buttons** onto a second row on narrow screens.
-2. **Shrink them to icons only** on phones (some already hide their text labels).
-3. **Move them into a menu**, such as a single ⚙ button that opens the settings.
-
 ## Where new waves' asteroids appear
 
 When a new wave starts, the ship stays where it is in both versions, still moving. The difference is where the new large asteroids appear:

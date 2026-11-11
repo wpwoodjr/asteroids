@@ -24,6 +24,7 @@ export default async function ({ send, ev, base, sleep }) {
         footerFits: f.scrollWidth <= f.clientWidth + 1,
         pageFits: document.documentElement.scrollWidth <= innerWidth + 1 && document.documentElement.scrollHeight <= innerHeight + 1,
         mode: h.classList.contains('wrap') ? 'two rows' : h.classList.contains('compact') ? 'compact' : 'full',
+        aspect: document.getElementById('game-frame').getBoundingClientRect().width / document.getElementById('game-frame').getBoundingClientRect().height,
         buttonGap: document.getElementById('touch-controls').getBoundingClientRect().top - document.getElementById('game-frame').getBoundingClientRect().bottom
       };
     })()`);
@@ -31,6 +32,7 @@ export default async function ({ send, ev, base, sleep }) {
     ok(`${label}: no button text wraps`, r.tallestButton <= 40, `tallest button ${r.tallestButton}px`);
     ok(`${label}: footer fits on one line`, r.footerFits);
     ok(`${label}: page fits the screen`, r.pageFits);
+    ok(`${label}: playfield is 4:3, not squashed`, Math.abs(r.aspect - 4 / 3) < 0.01, r.aspect.toFixed(3));
     ok(`${label}: touch buttons sit just under the playfield`, r.buttonGap >= 0 && r.buttonGap <= 12, `${Math.round(r.buttonGap)} px gap`);
     for (const id of ['screen-start', 'screen-help', 'screen-game-over']) {
       const v = await ev(`new Promise((done) => {
@@ -47,6 +49,27 @@ export default async function ({ send, ev, base, sleep }) {
       ok(`${label}: ${name} overlay ${v.scrolls ? 'scrolls' : 'fits'}`, (v.scrolls || v.fits) && v.scale >= 0.55, `scale ${v.scale.toFixed(2)}`);
     }
   }
+  // Two-row touch buttons (Hyperspace and Pause on a second row) only when it doesn't
+  // shrink the playfield: phone in portrait fullscreen has room; landscape doesn't
+  for (const [label, width, height, wantTwoRows] of [['portrait fullscreen', 852, 883, true], ['landscape', 883, 796, false]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 2.4375, mobile: true });
+    await send('Page.navigate', { url: `${base}/asteroids.html` });
+    await sleep(2500);
+    const t = await ev(`(() => {
+      const touch = document.getElementById('touch-controls'), frame = document.getElementById('game-frame');
+      const twoRows = touch.classList.contains('two-row'), w = frame.getBoundingClientRect().width;
+      // Playfield width with the buttons forced onto one row, for comparison
+      touch.classList.remove('two-row');
+      const m = document.querySelector('main'), ms = getComputedStyle(m), mr = m.getBoundingClientRect();
+      const oneRowW = Math.min(mr.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight), mr.height * 4 / 3);
+      window.__asteroidsGameInstance.resize();
+      const rows = [...new Set([...touch.querySelectorAll('button')].map((b) => Math.round(b.getBoundingClientRect().top / 20)))].length;
+      return { twoRows, w, oneRowW, rows };
+    })()`);
+    ok(`${label}: ${wantTwoRows ? 'two rows' : 'one row'} of touch buttons`, t.twoRows === wantTwoRows);
+    ok(`${label}: playfield not smaller than with one row`, t.w >= t.oneRowW - 1, `${Math.round(t.w)} vs ${Math.round(t.oneRowW)} px wide`);
+  }
+
   // Phone outside fullscreen, with a 32 px gesture-bar strip at the bottom: the touch
   // buttons stay clear of it, and only the footer line uses it
   await send('Emulation.setDeviceMetricsOverride', { width: 852, height: 718, deviceScaleFactor: 2.4375, mobile: true });

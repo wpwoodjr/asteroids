@@ -62,6 +62,13 @@
     footer.compact .footer-long { display: none !important; }
     footer.compact .footer-short { display: inline !important; }
     .overlay-fit { transform-origin: center; }
+    /* Two-row touch controls (chosen by resize() when there's room): Hyperspace under
+       the rotate buttons, Pause under Thrust and Fire */
+    #touch-controls.two-row > div { display: grid; grid-template-columns: auto auto; justify-items: center; }
+    #touch-controls.two-row #btn-touch-hyperspace,
+    #touch-controls.two-row #btn-touch-pause { grid-column: 1 / span 2; grid-row: 2; }
+    #touch-controls.two-row #btn-touch-thrust { grid-column: 1; grid-row: 1; }
+    #touch-controls.two-row #btn-touch-fire { grid-column: 2; grid-row: 1; }
     .font-arcade {
       font-family: 'Press Start 2P', monospace;
     }
@@ -1065,17 +1072,38 @@
         const frame = document.getElementById('game-frame');
         if (!main || !frame) return;
 
-        const mainRect = main.getBoundingClientRect();
-        if (mainRect.width <= 0 || mainRect.height <= 0) return;
-
+        // Largest 4:3 playfield that fits inside <main>'s padding
         const targetAspect = this.width / this.height;
-        let frameWidth = mainRect.width;
-        let frameHeight = frameWidth / targetAspect;
+        const fitFrame = () => {
+          const style = getComputedStyle(main), r = main.getBoundingClientRect();
+          const rect = {
+            width: r.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+            height: r.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+          };
+          let w = rect.width, h = w / targetAspect;
+          if (h > rect.height) {
+            h = rect.height;
+            w = h * targetAspect;
+          }
+          return { w, h, ok: rect.width > 0 && rect.height > 0 };
+        };
 
-        if (frameHeight > mainRect.height) {
-          frameHeight = mainRect.height;
-          frameWidth = frameHeight * targetAspect;
+        // Touch buttons: Hyperspace and Pause go on a second row (under the rotate and
+        // thrust/fire buttons) only if that doesn't make the playfield smaller. The
+        // playfield may move up to make room.
+        const touch = document.getElementById('touch-controls');
+        touch.style.transform = '';
+        touch.classList.add('two-row');
+        let fit = fitFrame();
+        const twoRowWidth = fit.w;
+        touch.classList.remove('two-row');
+        fit = fitFrame();
+        if (!fit.ok) return;
+        if (twoRowWidth >= fit.w - 0.5) {
+          touch.classList.add('two-row');
+          fit = fitFrame();
         }
+        const frameWidth = fit.w, frameHeight = fit.h;
 
         frame.style.width = `${Math.floor(frameWidth)}px`;
         frame.style.height = `${Math.floor(frameHeight)}px`;
@@ -1083,8 +1111,6 @@
         // Keep the touch buttons just under the playfield: when the playfield is limited
         // by width it doesn't reach the bottom of its area, so lift the buttons up to it
         // (the playfield itself stays where it is; the spare space ends up below them)
-        const touch = document.getElementById('touch-controls');
-        touch.style.transform = '';
         const gap = touch.getBoundingClientRect().top - frame.getBoundingClientRect().bottom - 8;
         if (gap > 0) touch.style.transform = `translateY(${-gap}px)`;
 

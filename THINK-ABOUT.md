@@ -26,21 +26,6 @@ Options (can be combined):
 
 The code is in `isSpawnAreaClear()` and the ship update in `asteroids.html`.
 
-## Where new waves' asteroids appear
-
-When a new wave starts, the ship stays where it is in both versions, still moving. The difference is where the new large asteroids appear:
-
-- **Original:** each one starts on a screen edge, either along the left/right edge or along the top/bottom edge, chosen at random per rock (`$719D`–`$71D3`). They drift in from the edges toward wherever the ship is.
-- **This version:** anywhere on screen, at least 150 px from the ship (and clear of the planet in gravity mode).
-
-Options:
-
-1. **Match the original:** start them on the edges. Catch: if the ship is sitting at an edge when the wave starts, a rock can appear close to it (true in the original too).
-2. **Edges, but not near the ship:** start on the edges, skipping spots within 150 px of the ship.
-3. **Keep it as is.**
-
-The code is in `createWave()` in `asteroids.html`.
-
 ## Black band at the top of the installed app
 
 On the test phone (2152 × 2076 screen), the installed app leaves a black band about 136 pixels tall across the top, by the camera. A Chrome tab after tapping **Full** fills the whole screen.

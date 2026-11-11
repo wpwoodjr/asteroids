@@ -19,6 +19,16 @@ window.addEventListener('load', () => setTimeout(() => {
     const sizes = [1, 2, 3, 4, 5, 6, 9].map((w) => { g.createWave(w); return g.asteroids.length; });
     ok('wave sizes 4, 6, 8, 10, 11, 11, 11', sizes.join() === '4,6,8,10,11,11,11', sizes.join());
 
+    // New waves start on the screen edges (x = 0 or y = 0, which wrap), both kinds used
+    let onEdges = true, sides = 0, tops = 0;
+    for (let w = 0; w < 30; w++) {
+      g.createWave(5);
+      for (const a of g.asteroids) {
+        if (a.x === 0) sides++; else if (a.y === 0) tops++; else onEdges = false;
+      }
+    }
+    ok('new waves start on the screen edges', onEdges && sides > 0 && tops > 0, `${sides} on the side edge, ${tops} on the top edge`);
+
     // New asteroids: every size gets 6..16 units per axis, whatever the wave
     let fresh = true;
     for (const size of ['large', 'medium', 'small']) {
@@ -48,6 +58,26 @@ window.addEventListener('load', () => setTimeout(() => {
       }
     }
     ok('fragments keep parent motion (+nudge, clamped)', inherit);
+
+    // Fragments start nudged off the parent's spot: first sideways, second up/down,
+    // by flipping bits of the position's low byte with (velocity & 31) * 2
+    let nudgeOk = true, moved = 0;
+    const toUnits = 8192 / 1000;
+    for (let i = 0; i < 200; i++) {
+      const parent = g.createAsteroid(300 + Math.random() * 400, 200 + Math.random() * 300, 'large');
+      g.asteroids = [parent];
+      g.destroyAsteroid(0);
+      const [f1, f2] = g.asteroids;
+      const expect = (pos, vel) => {
+        const p = Math.floor(pos * toUnits), low = p & 0xff, k = (Math.round(vel / U) & 0x1f) << 1;
+        return pos + ((low ^ k) - low) / toUnits;
+      };
+      if (f1.y !== parent.y || Math.abs(f1.x - expect(parent.x, f1.vx)) > 1e-9) nudgeOk = false;
+      if (f2.x !== parent.x || Math.abs(f2.y - expect(parent.y, f2.vy)) > 1e-9) nudgeOk = false;
+      if (Math.abs(f1.x - parent.x) > 7.6 || Math.abs(f2.y - parent.y) > 7.6) nudgeOk = false;
+      if (f1.x !== parent.x || f2.y !== parent.y) moved++;
+    }
+    ok('fragments start nudged apart like the original', nudgeOk && moved > 150, `${moved}/200 pairs moved off the spot`);
     ok('fragments can reach the 31-unit cap', sawFast);
     Math.random = () => 0.5; // nudge of 0
     const slow = g.createAsteroid(500, 400, 'medium', { vx: 0, vy: 2 * U });

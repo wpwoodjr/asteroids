@@ -1583,17 +1583,14 @@
         // As in the arcade original: 4 large asteroids, +2 per wave, at most 11
         const count = Math.min(4 + 2 * (waveNum - 1), 11);
         this.maxRocksForUfo = Math.min(10, this.maxRocksForUfo + 1);
-        const safeRadius = 150;
 
+        // Like the arcade original, each rock starts on a screen edge: either the
+        // left/right edge at a random height, or the top/bottom edge at a random spot
+        // across (the edges wrap, so each is one seam). They drift in from there.
         for (let i = 0; i < count; i++) {
-          let x, y, dist, distPlanet;
-          do {
-            x = Math.random() * this.width;
-            y = Math.random() * this.height;
-            dist = Math.hypot(x - (this.ship ? this.ship.x : this.width / 2), y - (this.ship ? this.ship.y : this.height / 2));
-            distPlanet = this.gravityMode ? Math.hypot(x - this.planet.x, y - this.planet.y) : 999;
-          } while (dist < safeRadius || (this.gravityMode && distPlanet < this.planet.radius + 85));
-
+          const onSideEdge = Math.random() < 0.5;
+          const x = onSideEdge ? 0 : Math.random() * this.width;
+          const y = onSideEdge ? Math.random() * this.height : 0;
           this.asteroids.push(this.createAsteroid(x, y, 'large'));
         }
 
@@ -2190,7 +2187,16 @@
         // a fragment that doesn't fit is never created (the points still count)
         const fragmentSize = { large: 'medium', medium: 'small' }[a.size];
         for (let i = 0; i < 2 && fragmentSize && this.asteroids.length < MAX_ASTEROIDS; i++) {
-          this.asteroids.push(this.createAsteroid(a.x, a.y, fragmentSize, a));
+          const fragment = this.createAsteroid(a.x, a.y, fragmentSize, a);
+          // Nudge it off the parent's spot like the original: the first fragment
+          // sideways, the second up or down. The low 5 bits of its own velocity on that
+          // axis, doubled, flip bits in the low byte of its position (up to ~7.6 px).
+          const axis = i === 0 ? 'x' : 'y';
+          const units = Math.round(fragment[axis === 'x' ? 'vx' : 'vy'] / ARCADE_VEL_UNIT);
+          const posUnits = Math.floor(fragment[axis] * 8192 / 1000);
+          const low = posUnits & 0xff;
+          fragment[axis] += ((low ^ ((units & 0x1f) << 1)) - low) * 1000 / 8192;
+          this.asteroids.push(fragment);
         }
       }
 

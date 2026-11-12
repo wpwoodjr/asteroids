@@ -115,6 +115,7 @@ const TESTS = {
   saucer: pageTest('saucer.js'),
   arcade: pageTest('arcade.js'),
   sound: pageTest('sound.js'),
+  idle: pageTest('idle.js'),
   settings: pageTest('settings.js', ['set', 'check']),
   palettes: pageTest('palettes.js'),
   fullscreen: async (ctx) => (await import('./cdp/fullscreen.mjs')).default(ctx),

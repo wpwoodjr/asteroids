@@ -967,9 +967,25 @@
         this.setupKeyboard();
         this.setupTouchControls();
 
-        // Animation loop
-        this.lastTime = performance.now();
-        requestAnimationFrame((t) => this.loop(t));
+        // Animation loop: runs continuously only while playing (see loop())
+        this.rafId = 0;
+        this.requestRender();
+      }
+
+      // Schedule one frame, unless one is already pending
+      scheduleFrame() {
+        if (this.rafId) return;
+        this.rafId = requestAnimationFrame((t) => {
+          this.rafId = 0;
+          this.loop(t);
+        });
+      }
+
+      // Redraw once when something visible changes while the game isn't running
+      // (start, paused, game over), so the idle screen costs no CPU between changes
+      requestRender() {
+        if (!this.rafId && this.state !== 'PLAYING') this.lastTime = performance.now();
+        this.scheduleFrame();
       }
 
       initDOM() {
@@ -1125,6 +1141,9 @@
         // Enlarge the HUD on small screens so the score stays at least ~12 CSS px tall
         const cssScale = frameWidth / this.width;
         this.hudScale = Math.min(2.2, Math.max(1, 12 / (18 * cssScale)));
+
+        // Resizing the canvas clears it, so draw it again
+        this.requestRender();
       }
 
       // The Fullscreen button/F key only make sense when the Fullscreen API is supported
@@ -1485,6 +1504,7 @@
         this.highScore = loadHighScore();
         this.updateHighScoreDisplays();
         this.renderLeaderboard();
+        this.requestRender(); // the HUD shows the high score
       }
 
       isModalOpen() {
@@ -1531,6 +1551,8 @@
         this.createWave(this.wave);
 
         this.state = 'PLAYING';
+        this.lastTime = performance.now();
+        this.scheduleFrame();
         document.getElementById('screen-start').classList.add('hidden');
         document.getElementById('screen-pause').classList.add('hidden');
         document.getElementById('screen-game-over').classList.add('hidden');
@@ -1844,6 +1866,7 @@
         } else if (this.state === 'PAUSED') {
           this.state = 'PLAYING';
           this.lastTime = performance.now();
+          this.scheduleFrame();
           document.getElementById('screen-pause').classList.add('hidden');
           if (this.ufo) {
             this.sound.startUfoSiren(this.ufo.isSmall);
@@ -2214,6 +2237,7 @@
 
       // --- Rendering Loop ---
       render() {
+        this.renderCount = (this.renderCount || 0) + 1; // for the diagnostics panel's fps readout
         const ctx = this.ctx;
         const theme = THEMES[currentThemeIdx];
 
@@ -2502,12 +2526,13 @@
       }
 
       loop(timestamp) {
-        const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
+        const dt = Math.min(Math.max(0, (timestamp - this.lastTime) / 1000), 0.1);
         this.lastTime = timestamp;
 
-        // Planet spins on the start and game over screens too, but freezes while paused.
-        // rotSpeed/pulseSpeed are per frame at the arcade frame rate, scaled by elapsed time.
-        if (this.gravityMode && this.state !== 'PAUSED') {
+        // The planet spins only while playing; everything is still on the start,
+        // paused and game over screens. rotSpeed/pulseSpeed are per frame at the
+        // arcade frame rate, scaled by elapsed time.
+        if (this.gravityMode && this.state === 'PLAYING') {
           const cfg = GRAVITY_LEVELS[this.gravityLevel];
           this.planet.rot += cfg.rotSpeed * ARCADE_FPS * dt;
           this.planet.pulse = (this.planet.pulse + cfg.pulseSpeed * ARCADE_FPS * dt) % (Math.PI * 2);
@@ -2516,7 +2541,8 @@
         this.update(dt);
         this.render();
 
-        requestAnimationFrame((t) => this.loop(t));
+        // Keep running only while playing; otherwise stop until requestRender()
+        if (this.state === 'PLAYING') this.scheduleFrame();
       }
     }
 
@@ -2551,7 +2577,26 @@
         panel.style.cssText = 'position:fixed;left:8px;right:8px;top:40%;z-index:100;margin:0;padding:10px;' +
           'background:#111c;border:1px solid #888;color:#fff;font:12px monospace;white-space:pre-wrap';
         panel.addEventListener('pointerdown', () => panel.remove());
+
+        // Live frame rates, updated every second while the panel is open: how often the
+        // screen refreshes (frames the browser offers), and how often the game draws
+        const fpsLine = document.createElement('div');
+        fpsLine.textContent = 'screen refresh: measuring…';
+        panel.appendChild(fpsLine);
         document.body.appendChild(panel);
+        const game = window.__asteroidsGameInstance;
+        let refreshes = 0, start = performance.now(), drawsAtStart = game ? game.renderCount || 0 : 0;
+        const tick = (t) => {
+          if (!panel.isConnected) return;
+          refreshes++;
+          if (t - start >= 1000) {
+            const secs = (t - start) / 1000, draws = (game ? game.renderCount || 0 : 0) - drawsAtStart;
+            fpsLine.textContent = `screen refresh: ${Math.round(refreshes / secs)} Hz, game drawing: ${Math.round(draws / secs)} fps`;
+            refreshes = 0; start = t; drawsAtStart = game ? game.renderCount || 0 : 0;
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
       });
     })();
 

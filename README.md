@@ -54,6 +54,8 @@ The installed app opens fullscreen and works offline once you've loaded it onlin
 
 On touch devices, use the on-screen buttons below the playfield to rotate, thrust, fire, hyperspace and pause.
 
+The game pauses automatically when you switch to another tab or app, the screen turns off, or another window takes focus.
+
 ## Scoring
 
 | Target | Points |

@@ -33,6 +33,21 @@ window.addEventListener('load', () => setTimeout(async () => {
     ok('resumed: draws every frame again', resumed >= 20, `${resumed} in 0.5 s`);
     ok('only one frame loop runs (no doubled speed)', resumed <= 40, `${resumed} in 0.5 s`);
 
+    // Auto-pause: switching away (tab hidden) or another window taking focus
+    ok('playing before switching away', g.state === 'PLAYING');
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    ok('tab hidden: game pauses', g.state === 'PAUSED' && !document.getElementById('screen-pause').classList.contains('hidden'));
+    delete document.hidden;
+    document.dispatchEvent(new Event('visibilitychange'));
+    ok('back on the tab: stays paused until you resume', g.state === 'PAUSED');
+    g.togglePause();
+    window.dispatchEvent(new Event('blur'));
+    ok('window loses focus: game pauses', g.state === 'PAUSED');
+    window.dispatchEvent(new Event('blur'));
+    ok('losing focus again while paused: still paused', g.state === 'PAUSED');
+    g.togglePause();
+
     g.triggerGameOver();
     await wait(100);
     ok('game over: no redraws', (await count(500)) === 0, `${renders} in 0.5 s`);

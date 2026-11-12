@@ -965,6 +965,7 @@
         if (document.fonts) document.fonts.ready.then(() => this.resize());
         window.addEventListener('resize', () => this.resize());
         this.setupKeyboard();
+        this.setupAutoPause();
         this.setupTouchControls();
 
         // Animation loop: runs continuously only while playing (see loop())
@@ -1297,6 +1298,19 @@
         entity.vx += (dx / dist) * accel;
         entity.vy += (dy / dist) * accel;
         return dist;
+      }
+
+      // Pause when the game stops being the active thing on screen: another tab or app,
+      // the screen turning off (visibilitychange), or another window taking focus
+      // (blur). It doesn't resume by itself.
+      setupAutoPause() {
+        const pauseIfPlaying = () => {
+          if (this.state === 'PLAYING') this.togglePause();
+        };
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) pauseIfPlaying();
+        });
+        window.addEventListener('blur', pauseIfPlaying);
       }
 
       setupKeyboard() {

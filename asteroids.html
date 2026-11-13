@@ -2126,16 +2126,19 @@
               }
             }
 
-            // Top speed, clamped per axis like the arcade original
-            this.ship.vx = Math.max(-SHIP_MAX_AXIS, Math.min(SHIP_MAX_AXIS, this.ship.vx));
-            this.ship.vy = Math.max(-SHIP_MAX_AXIS, Math.min(SHIP_MAX_AXIS, this.ship.vy));
+            // (Losing the last ship removes it: nothing left to move)
+            if (this.ship) {
+              // Top speed, clamped per axis like the arcade original
+              this.ship.vx = Math.max(-SHIP_MAX_AXIS, Math.min(SHIP_MAX_AXIS, this.ship.vx));
+              this.ship.vy = Math.max(-SHIP_MAX_AXIS, Math.min(SHIP_MAX_AXIS, this.ship.vy));
 
-            this.ship.x += this.ship.vx * dt;
-            this.ship.y += this.ship.vy * dt;
-            this.wrapPosition(this.ship);
+              this.ship.x += this.ship.vx * dt;
+              this.ship.y += this.ship.vy * dt;
+              this.wrapPosition(this.ship);
 
-            if (this.ship.invulnerable > 0) {
-              this.ship.invulnerable -= dt;
+              if (this.ship.invulnerable > 0) {
+                this.ship.invulnerable -= dt;
+              }
             }
           }
         }

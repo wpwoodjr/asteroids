@@ -112,6 +112,18 @@ window.addEventListener('load', () => setTimeout(() => {
     localStorage.removeItem('asteroids_leaderboard'); localStorage.removeItem('asteroids_high_score');
     g.highScore = 0;
 
+    // Losing the last ship to the planet (gravity mode) mid-update didn't crash the game
+    const gravity = g.gravityLevel;
+    g.setGravityLevel(2, false);
+    g.startGame(); g.ufo = null; g.asteroids = []; g.lives = 1;
+    g.ship.x = g.planet.x; g.ship.y = g.planet.y - g.planet.radius - 5; g.ship.vx = g.ship.vy = 0;
+    let crashError = null;
+    try { g.update(0.016); } catch (e) { crashError = e; }
+    ok('last ship lost to the planet: no crash, game over countdown runs', !crashError && g.ship === null && g.gameOverTimer > 0,
+      crashError ? String(crashError) : '');
+    g.setGravityLevel(gravity, false);
+    g.togglePause();
+
     // Browser shortcuts and held toggle keys
     const gravityBefore = g.gravityLevel, themeBefore = currentThemeIdx;
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyG', key: 'g', ctrlKey: true }));

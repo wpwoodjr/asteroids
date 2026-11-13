@@ -153,6 +153,68 @@ window.addEventListener('load', () => setTimeout(async () => {
     ok('audio uses a low-latency buffer', live.ctx.baseLatency === undefined || live.ctx.baseLatency <= 0.02,
        `${(live.ctx.baseLatency * 1000).toFixed(1)} ms`);
     live.ctx.close();
+
+    // Pausing cuts off every sound at once, including the thrust tone and an explosion's
+    // tail, by disconnecting them (not a scheduled fade, which a stalled clock would hold
+    // back); sounds play again normally afterwards
+    const cut = async (play, after) => {
+      const ctx = new OfflineAudioContext(1, Math.floor(44100 * 2), 44100);
+      const sound = new SoundEngine();
+      sound.ctx = ctx;
+      sound.ensureActive = () => {};
+      sound.masterGain = ctx.createGain();
+      sound.masterGain.connect(ctx.destination);
+      sound.setupThrust();
+      play(sound);
+      ctx.suspend(0.5).then(() => { sound.silence(); if (after) after(sound); ctx.resume(); });
+      const data = (await ctx.startRendering()).getChannelData(0);
+      const at = (from, to) => rms(data.subarray(Math.floor(from * 44100), Math.floor(to * 44100)));
+      return { before: at(0.3, 0.5), after: at(0.51, 1.0) };
+    };
+    const boom = await cut((s) => s.playExplosion('ship'));
+    ok('pause cuts off an explosion at once', boom.before > 0.01 && boom.after === 0,
+       `${boom.before.toFixed(3)} before, ${boom.after.toFixed(4)} after`);
+    const rumble = await cut((s) => s.startThrust());
+    ok('pause cuts off the thrust tone at once', rumble.before > 0.01 && rumble.after === 0,
+       `${rumble.before.toFixed(3)} before, ${rumble.after.toFixed(4)} after`);
+    const again = await cut((s) => s.playExplosion('large'), (s) => { s.startThrust(); s.playLaser(); });
+    ok('sounds play again after the cut', again.after > 0.01, again.after.toFixed(3));
+
+    // The audio context sleeps once the game is idle, and only then
+    const sleepy = new SoundEngine();
+    const fakeCtx = (state) => ({ state, suspend() { this.state = 'suspended'; }, resume() { this.state = 'running'; } });
+    sleepy.ctx = fakeCtx('running');
+    sleepy.suspendDelay = 400;
+    sleepy.isIdle = () => false;
+    sleepy.suspendWhenIdle();
+    await new Promise((r) => setTimeout(r, 500));
+    ok('audio keeps running while playing', sleepy.ctx.state === 'running');
+    sleepy.isIdle = () => true;
+    sleepy.suspendWhenIdle();
+    await new Promise((r) => setTimeout(r, 200));
+    ok('audio waits for the last sound to finish', sleepy.ctx.state === 'running');
+    await new Promise((r) => setTimeout(r, 300));
+    ok('audio sleeps when idle', sleepy.ctx.state === 'suspended');
+    sleepy.ensureActive();
+    ok('the next sound wakes it', sleepy.ctx.state === 'running');
+    // Muted: sleeps even mid-game, sounds don't wake it, unmuting does
+    sleepy.isIdle = () => false;
+    sleepy.masterGain = { gain: { setValueAtTime() {} } };
+    sleepy.setMuted(true);
+    // The heartbeat and other sounds keep asking for audio during a game
+    for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 100)); sleepy.ensureActive(); }
+    await new Promise((r) => setTimeout(r, 100));
+    ok('audio sleeps while muted, even mid-game', sleepy.ctx.state === 'suspended');
+    sleepy.ensureActive();
+    ok('sounds don\'t wake it while muted', sleepy.ctx.state === 'suspended');
+    sleepy.setMuted(false);
+    ok('unmuting wakes it', sleepy.ctx.state === 'running');
+    clearTimeout(sleepy.suspendTimer);
+    ok('waits long enough for the longest sound (ship explosion, 3 s)', new SoundEngine().suspendDelay >= 3500);
+    g.startGame();
+    ok('game is not idle while playing', !g.sound.isIdle());
+    g.togglePause();
+    ok('game is idle while paused', g.sound.isIdle());
   } catch (e) { out.push('ERROR ' + e.stack); }
   window.__testResults = out;
   window.__testDone = true;

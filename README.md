@@ -23,7 +23,7 @@ python3 -m http.server 8000
 # then browse to http://<your-ip>:8000/asteroids.html
 ```
 
-An internet connection is needed on first load for Tailwind CSS (CDN) and the Google Fonts *Press Start 2P* and *Share Tech Mono*.
+Everything the game needs, including its styles and fonts, is in `asteroids.html`, so it works without an internet connection and contacts no other site.
 
 ### Install as an app
 
@@ -33,7 +33,7 @@ The game is a Progressive Web App (PWA). From the [live site](https://wpwoodjr.g
 - **iPhone/iPad (Safari):** Share → **Add to Home Screen**
 - **Desktop Chrome/Edge:** the install icon in the address bar
 
-The installed app opens fullscreen and works offline once you've loaded it online one time. The offline support only works over `http(s)`, not when you open the file directly.
+The installed app opens fullscreen and works offline. The offline support only works over `http(s)`, not when you open the file directly.
 
 ## Controls
 
@@ -87,9 +87,21 @@ The game itself lives in `asteroids.html`. `manifest.webmanifest`, `sw.js` (the 
 - The game simulates a fixed **1000 × 750** logical world and scales it onto the canvas. Each frame's time step is capped at 100 ms, so physics doesn't jump after the tab was in the background.
 - Physics uses frame-time-based velocity integration with screen wrap-around. Gravity is an inverse-square pull with a minimum-distance clamp, scaled for each entity type.
 
+### Styles
+
+The page's HTML uses [Tailwind CSS](https://tailwindcss.com) classes. The CSS for them is generated ahead of time and embedded in `asteroids.html` (the `<style id="tailwind">` block), so players' browsers download nothing from Tailwind. After adding or changing Tailwind classes, rebuild it:
+
+```sh
+node tools/build-css.mjs
+```
+
+This needs Tailwind CSS v3.4.17's command-line tool: the [standalone executable](https://github.com/tailwindlabs/tailwindcss/releases/tag/v3.4.17) (no npm needed) or `npx tailwindcss@3.4.17`. Set `TAILWINDCSS=/path/to/tailwindcss` if it isn't on your `PATH`. The `styles` test fails if a class is missing its CSS.
+
+The fonts, [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) and [Share Tech Mono](https://fonts.google.com/specimen/Share+Tech+Mono), are embedded too (the `<style id="fonts">` block), as the Latin subsets Google Fonts serves.
+
 ## Tests
 
-The `tests/` folder has automated checks for gameplay, arcade rules, physics, sounds, mouse input, saved settings, color palettes, the Fullscreen button, layout at different screen sizes, and PWA install and offline support. The runner serves the game locally and drives headless Chromium:
+The `tests/` folder has automated checks for gameplay, arcade rules, physics, sounds, mouse input, saved settings, color palettes, embedded styles and fonts, the Fullscreen button, layout at different screen sizes, and PWA install and offline support. The runner serves the game locally and drives headless Chromium:
 
 ```sh
 node tests/run.mjs                 # all tests (Node 22+)
@@ -102,3 +114,5 @@ It needs `python3` and Chromium. Set `CHROME=/path/to/chrome` if Chromium isn't 
 ## License
 
 [MIT](LICENSE) © 2026 Bill Wood
+
+The embedded fonts are licensed separately under the SIL Open Font License 1.1: *Press Start 2P* © 2012 The Press Start 2P Project Authors, and *Share Tech Mono* © 2012 Carrois Type Design, Ralph du Carrois. Their license texts are in [`licenses/`](licenses).

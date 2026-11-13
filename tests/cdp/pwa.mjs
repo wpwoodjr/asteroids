@@ -23,17 +23,21 @@ export default async function ({ send, ev, base, stopServer, sleep }) {
   ok('icons served', icons.every((s) => s === 200), JSON.stringify(icons));
   const cached = await ev(`caches.keys().then((names) => caches.open(names[0])).then((c) => c.keys())
     .then((reqs) => reqs.map((r) => r.url.replace(location.origin, '')))`);
-  ok('app shell + CDN cached', cached.includes('/asteroids.html') && cached.some((u) => u.includes('tailwindcss')), `${cached.length} entries`);
+  ok('app shell cached', cached.includes('/asteroids.html') && cached.includes('/icons/icon-192.png'), `${cached.length} entries`);
+  ok('nothing from other sites cached', cached.every((u) => u.startsWith('/')), cached.filter((u) => !u.startsWith('/')).join(', '));
 
   // Offline: stop the server and load again
   stopServer();
   await sleep(1000);
   await send('Page.navigate', { url });
   await sleep(3000);
-  const offline = await ev(`({ title: document.title, game: !!window.__asteroidsGameInstance,
-    tw: getComputedStyle(document.getElementById('screen-start')).position })`);
+  const offline = await ev(`(async () => ({ title: document.title, game: !!window.__asteroidsGameInstance,
+    tw: getComputedStyle(document.getElementById('screen-start')).position,
+    fonts: await Promise.all(["10px 'Press Start 2P'", "10px 'Share Tech Mono'"].map((f) => document.fonts.load(f)))
+      .then((faces) => faces.every((list) => list.length > 0 && list.every((f) => f.status === 'loaded'))) }))()`);
   ok('loads offline', offline?.game && offline.title.startsWith('Asteroids'), JSON.stringify(offline));
-  ok('Tailwind styles work offline', offline?.tw === 'absolute', offline?.tw);
+  ok('styles work offline', offline?.tw === 'absolute', offline?.tw);
+  ok('fonts work offline', offline?.fonts === true);
   await send('Page.navigate', { url: `${base}/` });
   await sleep(3000);
   ok('root URL works offline', await ev('!!window.__asteroidsGameInstance'));

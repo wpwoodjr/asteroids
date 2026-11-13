@@ -2564,6 +2564,81 @@
       }
     }
 
+    // --- Sound debugging (temporary) ---
+    // To track down game sounds heard while paused. Records every sound the game starts
+    // or stops, pauses and resumes and what input came just before, the page losing or
+    // regaining focus, and the audio clock (whether it's running, and any time it stalls
+    // or jumps compared with real time). Each entry: seconds since the page loaded, the
+    // game state, the audio clock (a=), then the event. The diagnostics panel shows the
+    // log and can copy it.
+    const soundLog = [];
+    function slog(msg) {
+      const game = window.__asteroidsGameInstance;
+      const ctx = game && game.sound.ctx;
+      soundLog.push(`${(performance.now() / 1000).toFixed(2)} ${game ? game.state : '-'}` +
+        (ctx ? ` a=${ctx.currentTime.toFixed(2)}` : '') + ` ${msg}`);
+      if (soundLog.length > 500) soundLog.shift();
+    }
+    // Wrap the running game's own methods (not the classes', which tests inspect)
+    function installSoundDebug(game) {
+      const sound = game.sound;
+      for (const name of ['playLaser', 'playExplosion', 'playHeartbeat', 'playHyperspace', 'playExtraLife',
+                          'startUfoSiren', 'stopUfoSiren', 'startThrust', 'stopThrust']) {
+        const original = sound[name];
+        sound[name] = (...args) => {
+          slog(`${name}(${args.join(',')})${sound.muted ? ' [muted]' : ''}${sound.ctx ? '' : ' [no audio yet]'}`);
+          return original.apply(sound, args);
+        };
+      }
+      for (const name of ['togglePause', 'startGame', 'triggerGameOver']) {
+        const original = game[name];
+        game[name] = (...args) => {
+          const before = game.state;
+          const result = original.apply(game, args);
+          slog(`${name}: ${before} -> ${game.state}`);
+          return result;
+        };
+      }
+    }
+    (() => {
+      // Input that can pause, resume or start a game (any input while not playing)
+      const isIdle = () => (window.__asteroidsGameInstance || {}).state !== 'PLAYING';
+      window.addEventListener('keydown', (e) => {
+        if (isIdle() || e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+          slog(`key ${e.key}${e.repeat ? ' (repeat)' : ''}`);
+        }
+      }, true);
+      document.addEventListener('pointerdown', (e) => {
+        const el = e.target.closest('[id]');
+        if (isIdle() || (el && el.id === 'btn-touch-pause')) slog(`${e.pointerType} press on #${el ? el.id : '?'}`);
+      }, true);
+      document.addEventListener('visibilitychange', () => slog(`page ${document.visibilityState}`));
+      for (const type of ['blur', 'focus', 'pagehide', 'pageshow']) window.addEventListener(type, () => slog(`window ${type}`));
+      for (const type of ['freeze', 'resume']) document.addEventListener(type, () => slog(`page ${type}`));
+
+      // Audio clock: twice a second, compare how far it moved with real time
+      let ctxSeen = null, lastAudio = 0, lastReal = 0, lastLatency = 0;
+      setInterval(() => {
+        const game = window.__asteroidsGameInstance;
+        const ctx = game && game.sound.ctx;
+        if (!ctx) return;
+        const now = performance.now() / 1000;
+        if (ctx !== ctxSeen) {
+          ctxSeen = ctx;
+          slog(`audio created: ${ctx.state}, sample rate ${ctx.sampleRate}, base latency ${Math.round((ctx.baseLatency || 0) * 1000)} ms`);
+          ctx.addEventListener('statechange', () => slog(`audio ${ctx.state}`));
+        } else if (ctx.state === 'running') {
+          const moved = ctx.currentTime - lastAudio, real = now - lastReal;
+          if (Math.abs(moved - real) > 0.1) slog(`audio clock moved ${moved.toFixed(2)} s in ${real.toFixed(2)} s`);
+        }
+        const latency = ctx.outputLatency || 0;
+        if (Math.abs(latency - lastLatency) > 0.03) slog(`audio output latency ${Math.round(latency * 1000)} ms`);
+        lastLatency = latency;
+        lastAudio = ctx.currentTime;
+        lastReal = now;
+      }, 500);
+    })();
+
     // Diagnostics: triple-tap (or triple-click) the ASTEROIDS logo to show screen
     // measurements, for checking layout on a real device
     (() => {
@@ -2592,15 +2667,41 @@
         panel = document.createElement('pre');
         panel.id = 'diagnostics';
         panel.textContent = lines.join('\n');
-        panel.style.cssText = 'position:fixed;left:8px;right:8px;top:40%;z-index:100;margin:0;padding:10px;' +
-          'background:#111c;border:1px solid #888;color:#fff;font:12px monospace;white-space:pre-wrap';
-        panel.addEventListener('pointerdown', () => panel.remove());
+        panel.style.cssText = 'position:fixed;left:8px;right:8px;top:8%;max-height:84%;overflow:auto;z-index:100;margin:0;padding:10px;' +
+          'background:#111e;border:1px solid #888;color:#fff;font:12px monospace;white-space:pre-wrap';
+        panel.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+        // Sound debugging: buttons to copy or clear the log, then the latest entries
+        const buttons = document.createElement('div');
+        buttons.style.cssText = 'display:flex;gap:8px;margin:8px 0';
+        const button = (label, onClick) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'padding:6px 10px;border:1px solid #888;background:#333;color:#fff;font:12px monospace';
+          b.addEventListener('click', () => onClick(b));
+          buttons.appendChild(b);
+        };
+        button('Close', () => panel.remove());
+        button('Copy log', (b) => {
+          const text = soundLog.join('\n');
+          navigator.clipboard.writeText(text).then(() => b.textContent = `Copied ${soundLog.length} lines`,
+            () => b.textContent = 'Copy failed');
+        });
+        button('Clear log', () => { soundLog.length = 0; slog('log cleared'); logView.textContent = soundLog.join('\n'); });
+        const logView = document.createElement('div');
+        logView.style.cssText = 'margin-top:6px;border-top:1px solid #555;padding-top:6px;color:#ccc';
 
         // Live frame rates, updated every second while the panel is open: how often the
         // screen refreshes (frames the browser offers), and how often the game draws
         const fpsLine = document.createElement('div');
         fpsLine.textContent = 'screen refresh: measuring…';
         panel.appendChild(fpsLine);
+        panel.appendChild(buttons);
+        panel.appendChild(logView);
+        const showLog = () => {
+          logView.textContent = `sound log (newest first, ${soundLog.length} entries):\n` + soundLog.slice(-80).reverse().join('\n');
+        };
+        showLog();
         document.body.appendChild(panel);
         const game = window.__asteroidsGameInstance;
         let refreshes = 0, start = performance.now(), drawsAtStart = game ? game.renderCount || 0 : 0;
@@ -2610,6 +2711,7 @@
           if (t - start >= 1000) {
             const secs = (t - start) / 1000, draws = (game ? game.renderCount || 0 : 0) - drawsAtStart;
             fpsLine.textContent = `screen refresh: ${Math.round(refreshes / secs)} Hz, game drawing: ${Math.round(draws / secs)} fps`;
+            showLog();
             refreshes = 0; start = t; drawsAtStart = game ? game.renderCount || 0 : 0;
           }
           requestAnimationFrame(tick);
@@ -2621,6 +2723,7 @@
     function initGame() {
       if (!window.__asteroidsGameInstance) {
         window.__asteroidsGameInstance = new AsteroidsGame();
+        installSoundDebug(window.__asteroidsGameInstance);
       }
     }
 

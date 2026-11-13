@@ -65,6 +65,78 @@ window.addEventListener('load', () => setTimeout(() => {
        /viewport-fit=cover/.test(document.querySelector('meta[name=viewport]').content));
     ok('page fills the screen without scrolling', document.documentElement.scrollHeight <= innerHeight + 1,
        `${document.documentElement.scrollHeight} / ${innerHeight}`);
+
+    // Thrust sound plays only while the ship is actually thrusting, and comes back
+    // with a new ship when thrust is held through the respawn
+    const calls = [];
+    const realStart = g.sound.startThrust, realStop = g.sound.stopThrust;
+    g.sound.startThrust = () => calls.push('start');
+    g.sound.stopThrust = () => calls.push('stop');
+    g.startGame(); g.asteroids = []; g.nextWaveTimer = 1e9;
+    const sounding = () => calls[calls.length - 1] === 'start';
+    key('keydown', 'KeyW', 'w'); g.update(0.016);
+    ok('thrust sound starts with thrust', sounding());
+    g.onShipDeath(); g.update(0.016);
+    ok('thrust sound stops when the ship explodes', !sounding());
+    g.ship.deadTimer = 0.001; g.update(0.016);
+    ok('thrust sound returns after respawn while still held', g.isShipActive() && sounding());
+    g.hyperspace(); g.ship.hyperDoomed = false; g.update(0.016);
+    ok('no thrust sound in hyperspace', !sounding());
+    g.ship.hyperTimer = 0.001; g.update(0.016);
+    ok('thrust sound back after hyperspace', sounding());
+    g.togglePause();
+    ok('thrust sound stops on pause', !sounding());
+    g.togglePause(); key('keyup', 'KeyW', 'w');
+    g.sound.startThrust = realStart; g.sound.stopThrust = realStop;
+
+    // Losing the last ship: the game carries on with GAME OVER showing for a few seconds
+    // (rocks drift, shots in flight still score, no extra ship), then the game over screen
+    g.startGame(); g.ufo = null; g.lives = 1;
+    localStorage.removeItem('asteroids_leaderboard');
+    const rock = g.asteroids[0], rockX = rock.x;
+    g.score = 9990; g.lastExtraLifeScore = 0;
+    g.onShipDeath();
+    ok('last ship lost: game keeps running', g.state === 'PLAYING' && g.gameOverTimer > 0);
+    for (let t = 0; t < 2.5; t += 0.05) g.update(0.05);
+    ok('rocks keep drifting', rock.x !== rockX);
+    g.score += 20; g.update(0.05);
+    ok('no ship comes back, even with an extra ship earned', g.state === 'PLAYING' && !g.isShipActive() && g.lives === 0);
+    g.render();
+    ok('no ship drawn or targeted after its timer runs out', g.ship === null);
+    ok('game over screen not shown yet', document.getElementById('screen-game-over').classList.contains('hidden'));
+    for (let t = 0; t < 1; t += 0.05) g.update(0.05);
+    ok('game over screen after the delay', g.state === 'GAMEOVER' &&
+       !document.getElementById('screen-game-over').classList.contains('hidden'));
+    ok('final score includes shots that landed after the last ship', JSON.parse(localStorage.getItem('asteroids_leaderboard'))
+      .some((e) => e.name === 'YOU' && e.score === 10010));
+    localStorage.removeItem('asteroids_leaderboard'); localStorage.removeItem('asteroids_high_score');
+    g.highScore = 0;
+
+    // Browser shortcuts and held toggle keys
+    const gravityBefore = g.gravityLevel, themeBefore = currentThemeIdx;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyG', key: 'g', ctrlKey: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC', key: 'c', metaKey: true }));
+    ok('Ctrl/Cmd shortcuts are left to the browser', g.gravityLevel === gravityBefore && currentThemeIdx === themeBefore);
+    key('keydown', 'KeyG', 'g');
+    const gravityPressed = g.gravityLevel;
+    key('keydown', 'KeyG', 'g', true); key('keydown', 'KeyG', 'g', true);
+    ok('holding G changes gravity once', gravityPressed !== gravityBefore && g.gravityLevel === gravityPressed);
+    g.setGravityLevel(gravityBefore, false); g.persistSettings();
+
+    // A slow frame (the 0.1 s cap) is simulated in small steps, so a bullet can't jump
+    // past a small asteroid
+    let hits = 0;
+    for (let n = 0; n < 10; n++) {
+      g.startGame(); g.ufo = null;
+      Object.assign(g.ship, { x: 300, y: 375, angle: 0, vx: 0, vy: 0 });
+      g.asteroids = [g.createAsteroid(340, 375, 'small')];
+      g.asteroids[0].vx = g.asteroids[0].vy = 0;
+      g.fireBullet();
+      g.loop(g.lastTime + 100);
+      if (g.asteroids.length === 0 || g.asteroids[0].size !== 'small' || g.score > 0) hits++;
+    }
+    ok('slow frames don\'t let bullets pass through asteroids', hits === 10, `${hits}/10`);
+    g.togglePause();
   } catch (e) { out.push('ERROR ' + e.stack); }
   window.__testResults = out;
   window.__testDone = true;

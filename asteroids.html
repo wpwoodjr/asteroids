@@ -374,6 +374,9 @@
         this.ufoOsc1 = null;
         this.ufoLfo = null;
         this.ufoGain = null;
+        this.isIdle = () => false; // set by the game: true when nothing is playing
+        this.suspendTimer = 0;
+        this.suspendDelay = 4000; // ms; long enough for the longest sound's tail
       }
 
       init() {
@@ -401,9 +404,23 @@
 
       ensureActive() {
         if (!this.ctx) this.init();
+        if (this.muted) return; // stays asleep (see suspendWhenIdle)
         if (this.ctx && this.ctx.state === 'suspended') {
           this.ctx.resume();
         }
+        this.suspendWhenIdle();
+      }
+
+      // A running audio context keeps the audio hardware busy even when silent, so once
+      // the game has been idle (start, paused, game over) long enough for the last sound
+      // to die away, put it to sleep; likewise whenever sound is muted, even mid-game.
+      // Every sound wakes it again via ensureActive() (unless muted), and leaving the idle
+      // screens always starts from a click, tap or key press.
+      suspendWhenIdle() {
+        clearTimeout(this.suspendTimer);
+        this.suspendTimer = setTimeout(() => {
+          if (this.ctx && this.ctx.state === 'running' && (this.muted || this.isIdle())) this.ctx.suspend();
+        }, this.suspendDelay);
       }
 
       // One long block each of white and brown noise, made once; each sound plays a random
@@ -434,10 +451,41 @@
         return src;
       }
 
+      // Every sound plays through this bus, which feeds the master volume. silence()
+      // swaps in a new one, so anything still playing is cut off at once.
+      bus() {
+        if (!this.sfxBus) {
+          this.sfxBus = this.ctx.createGain();
+          this.sfxBus.connect(this.masterGain);
+        }
+        return this.sfxBus;
+      }
+
+      // Cut off every sound right away (used on pause). Disconnecting takes effect even
+      // if the audio clock is stalled, unlike a scheduled fade: Android can freeze the
+      // game's audio when the screen turns off or you switch apps (which is when the
+      // game pauses itself), and would otherwise play the leftover sound much later.
+      silence() {
+        this.stopUfoSiren();
+        if (!this.sfxBus) return;
+        this.sfxBus.disconnect();
+        this.sfxBus = null;
+        if (this.thrustGain) {
+          // The thrust tone keeps running at zero volume, ready for the next thrust
+          this.thrustGain.disconnect();
+          this.thrustGain.gain.cancelScheduledValues(0);
+          this.thrustGain.gain.setValueAtTime(0, this.ctx.currentTime);
+          this.thrustGain.connect(this.bus());
+        }
+      }
+
       setMuted(muted) {
         this.muted = muted;
         if (this.masterGain && this.ctx) {
           this.masterGain.gain.setValueAtTime(this.muted ? 0 : 0.6, this.ctx.currentTime);
+          // Muting lets the audio sleep; unmuting wakes it
+          if (this.muted) this.suspendWhenIdle();
+          else this.ensureActive();
         }
       }
 
@@ -457,7 +505,7 @@
 
           this.thrustOsc.connect(this.thrustFilter);
           this.thrustFilter.connect(this.thrustGain);
-          this.thrustGain.connect(this.masterGain);
+          this.thrustGain.connect(this.bus());
           this.thrustOsc.start();
         } catch (e) {
           console.warn("Thrust audio setup failed:", e);
@@ -497,7 +545,7 @@
         clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.018);
         click.connect(clickFilter);
         clickFilter.connect(clickGain);
-        clickGain.connect(this.masterGain);
+        clickGain.connect(this.bus());
         click.start(now);
 
         // "EE" held high, then "AUW" diving. Aggressive, not polite: two detuned sawtooths
@@ -558,7 +606,7 @@
         mix.connect(drive);
         drive.connect(filter);
         filter.connect(gain);
-        gain.connect(this.masterGain);
+        gain.connect(this.bus());
       }
 
       playExplosion(type) {
@@ -597,9 +645,9 @@
           return nodes[nodes.length - 1];
         };
 
-        // Everything feeds a bus that goes out directly and through the echo
-        const bus = this.ctx.createGain();
-        bus.connect(this.masterGain);
+        // Everything feeds a mix that goes out directly and through the echo
+        const mix = this.ctx.createGain();
+        mix.connect(this.bus());
 
         // Echo: one darker, quieter repeat after ~0.3 s that rolls on a little
         const delay = this.ctx.createDelay(1);
@@ -609,20 +657,20 @@
         feedback.gain.setValueAtTime(0.35, now);
         const echoOut = this.ctx.createGain();
         echoOut.gain.setValueAtTime(0.4, now);
-        bus.connect(delay);
+        mix.connect(delay);
         chain(delay, echoTone, feedback, delay);
-        chain(echoTone, echoOut).connect(this.masterGain);
+        chain(echoTone, echoOut).connect(this.bus());
 
         // Hit: deep thud falling in pitch, with a dark noise burst
         const thud = this.ctx.createOscillator();
         thud.type = 'square';
         thud.frequency.setValueAtTime(cfg.thud, now);
         thud.frequency.exponentialRampToValueAtTime(cfg.thud * 0.45, now + 0.7);
-        chain(thud, filter('lowpass', 350), envelope([[0.004, g * 0.9], [0.7, 0.001]])).connect(bus);
+        chain(thud, filter('lowpass', 350), envelope([[0.004, g * 0.9], [0.7, 0.001]])).connect(mix);
         thud.start(now);
         thud.stop(now + 0.72);
         const burst = noise(0.25);
-        chain(burst, filter('lowpass', cfg.open, 150, 0.2), envelope([[0.004, g * 0.8], [0.22, 0.001]])).connect(bus);
+        chain(burst, filter('lowpass', cfg.open, 150, 0.2), envelope([[0.004, g * 0.8], [0.22, 0.001]])).connect(mix);
         burst.start(now);
 
         // Blast: big deep rumble, rolling slowly (volume wobble 2-4 times a second)
@@ -634,7 +682,7 @@
         const rollDepth = this.ctx.createGain();
         rollDepth.gain.setValueAtTime(0.35, now);
         chain(rollLfo, rollDepth).connect(roll.gain);
-        chain(blast, filter('lowpass', cfg.open, 50, d), envelope([[0.03, g * 0.45], [d * 0.3, g * 0.33], [d, 0.001]]), roll).connect(bus);
+        chain(blast, filter('lowpass', cfg.open, 50, d), envelope([[0.03, g * 0.45], [d * 0.3, g * 0.33], [d, 0.001]]), roll).connect(mix);
         blast.start(now);
         rollLfo.start(now);
         rollLfo.stop(now + d);
@@ -642,7 +690,7 @@
         // Earth: dull, smooth low-mid noise as the dirt comes down
         const earth = noise(d);
         chain(earth, filter('bandpass', 500, 300, d, 0.9),
-          envelope([[0.15, g * 0.06], [d * 0.3, g * 0.22], [d * 0.75, g * 0.08], [d, 0.001]])).connect(bus);
+          envelope([[0.15, g * 0.06], [d * 0.3, g * 0.22], [d * 0.75, g * 0.08], [d, 0.001]])).connect(mix);
         earth.start(now);
       }
 
@@ -675,7 +723,7 @@
 
         osc.connect(filter);
         filter.connect(gain);
-        gain.connect(this.masterGain);
+        gain.connect(this.bus());
         osc.start(now);
         osc.stop(now + 0.26);
       }
@@ -695,7 +743,7 @@
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
 
         osc.connect(gain);
-        gain.connect(this.masterGain);
+        gain.connect(this.bus());
         osc.start(now);
         osc.stop(now + 0.3);
       }
@@ -713,7 +761,7 @@
           gain.gain.setValueAtTime(0.15, now);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
           osc.connect(gain);
-          gain.connect(this.masterGain);
+          gain.connect(this.bus());
           osc.start(now);
           osc.stop(now + 0.16);
         });
@@ -740,7 +788,7 @@
           this.ufoGain.gain.setValueAtTime(0.18, now);
 
           this.ufoOsc1.connect(this.ufoGain);
-          this.ufoGain.connect(this.masterGain);
+          this.ufoGain.connect(this.bus());
           this.ufoOsc1.start(now);
           this.ufoLfo = lfo;
         } catch (e) {
@@ -817,6 +865,11 @@
       const dx = Math.abs(ax - bx), dy = Math.abs(ay - by);
       return dx <= r && dy <= r && dx + dy < 1.5 * r;
     }
+    // After the last ship explodes the game keeps running for a while with GAME OVER on
+    // the playfield, as in the arcade, before the game over screen: long enough for the
+    // explosion to play out and shots still in flight to land
+    const GAME_OVER_DELAY = 3;
+
     const BULLET_MAX_AXIS = 111 * ARCADE_VEL_UNIT;
     const BULLET_LIFE = 72 / ARCADE_FPS;
     function bulletVelocity(angle, shooterVx, shooterVy) {
@@ -924,6 +977,7 @@
         this.lives = 3;
         this.wave = 1;
         this.lastExtraLifeScore = 0;
+        this.gameOverTimer = 0; // counts down after the last ship is lost (GAME_OVER_DELAY)
 
         // Entities
         this.ship = null;
@@ -958,7 +1012,9 @@
         };
         this.canFire = true;
         this.canHyperspace = true;
+        this.thrustSounding = false; // see syncThrustSound()
 
+        this.sound.isIdle = () => this.state !== 'PLAYING';
         this.initDOM();
         this.applySavedSettings();
         this.setupOverlayFit();
@@ -1242,7 +1298,8 @@
           // Restart looping sounds that were skipped while muted
           if (this.state === 'PLAYING') {
             if (this.ufo) this.sound.startUfoSiren(this.ufo.isSmall);
-            if (this.keys.thrust) this.sound.startThrust();
+            this.thrustSounding = false;
+            this.syncThrustSound();
           }
         }
       }
@@ -1319,8 +1376,12 @@
 
       setupKeyboard() {
         window.addEventListener('keydown', (e) => {
+          // Leave browser and system shortcuts (Ctrl+F, Cmd+R, Alt+Tab...) to the browser
+          if (e.ctrlKey || e.metaKey || e.altKey) return;
           this.sound.ensureActive();
 
+          // Holding a toggle key acts once, not at the key-repeat rate
+          if (e.repeat && ['m', 'c', 'g', 'f'].includes(e.key.toLowerCase())) return;
           if (e.key === 'm' || e.key === 'M') {
             this.toggleAudio();
             return;
@@ -1376,7 +1437,6 @@
               break;
             case 'ArrowUp':
             case 'KeyW':
-              if (!this.keys.thrust) this.sound.startThrust();
               this.keys.thrust = true;
               e.preventDefault();
               break;
@@ -1414,7 +1474,6 @@
             case 'ArrowUp':
             case 'KeyW':
               this.keys.thrust = false;
-              this.sound.stopThrust();
               break;
             case 'Space':
             case 'KeyJ':
@@ -1462,13 +1521,7 @@
 
         bindTouch('btn-touch-left', () => this.keys.left = true, () => this.keys.left = false);
         bindTouch('btn-touch-right', () => this.keys.right = true, () => this.keys.right = false);
-        bindTouch('btn-touch-thrust', () => {
-          this.keys.thrust = true;
-          this.sound.startThrust();
-        }, () => {
-          this.keys.thrust = false;
-          this.sound.stopThrust();
-        });
+        bindTouch('btn-touch-thrust', () => this.keys.thrust = true, () => this.keys.thrust = false);
         bindTouch('btn-touch-fire', () => {
           if (this.state === 'PLAYING') this.fireBullet();
         });
@@ -1542,7 +1595,6 @@
 
       startGame() {
         this.sound.ensureActive();
-        this.sound.stopThrust();
         this.sound.stopUfoSiren();
         this.resetInput();
 
@@ -1550,6 +1602,7 @@
         this.lives = 3;
         this.wave = 1;
         this.lastExtraLifeScore = 0;
+        this.gameOverTimer = 0;
         this.asteroids = [];
         this.bullets = [];
         this.ufoBullets = [];
@@ -1840,6 +1893,17 @@
         this.ufoSpawnTimer = this.saucerReload;
       }
 
+      // The thrust rumble plays while the ship is actually thrusting: thrust held, game
+      // running, and the ship on screen (not exploded, respawning or in hyperspace). So
+      // holding thrust through a respawn brings the sound back with the ship.
+      syncThrustSound() {
+        const thrusting = this.state === 'PLAYING' && this.keys.thrust && this.isShipActive();
+        if (thrusting === this.thrustSounding) return;
+        this.thrustSounding = thrusting;
+        if (thrusting) this.sound.startThrust();
+        else this.sound.stopThrust();
+      }
+
       createParticleBurst(x, y, count, color = null, maxSpeed = 160) {
         const theme = THEMES[currentThemeIdx];
         const particleColor = color || theme.primary;
@@ -1877,11 +1941,13 @@
       togglePause() {
         if (this.state === 'PLAYING') {
           this.state = 'PAUSED';
-          this.sound.stopThrust();
-          this.sound.stopUfoSiren();
           this.resetInput();
+          this.syncThrustSound();
+          this.sound.silence();
+          this.sound.suspendWhenIdle();
           document.getElementById('screen-pause').classList.remove('hidden');
         } else if (this.state === 'PAUSED') {
+          this.sound.ensureActive();
           this.state = 'PLAYING';
           this.lastTime = performance.now();
           this.scheduleFrame();
@@ -1893,22 +1959,25 @@
       }
 
       onShipDeath() {
-        this.sound.stopThrust();
         this.sound.playExplosion('ship');
         this.createParticleBurst(this.ship.x, this.ship.y, 45, '#ef4444', 240);
 
         this.lives--;
         this.ship.deadTimer = 129 / ARCADE_FPS; // arcade respawn delay: 129 frames
 
+        // No ships left: remove it for good (nothing can respawn it, collide with it or
+        // aim at it) and let the game run out its last seconds
         if (this.lives <= 0) {
-          this.triggerGameOver();
+          this.ship = null;
+          this.gameOverTimer = GAME_OVER_DELAY;
         }
       }
 
       triggerGameOver() {
         this.state = 'GAMEOVER';
-        this.sound.stopThrust();
+        this.syncThrustSound();
         this.sound.stopUfoSiren();
+        this.sound.suspendWhenIdle();
 
         const isNewHigh = this.score > this.highScore;
         const board = loadLeaderboard();
@@ -1938,9 +2007,18 @@
       update(dt) {
         if (this.state !== 'PLAYING') return;
 
+        // Last ship lost: everything else carries on until the game over screen
+        if (this.gameOverTimer > 0) {
+          this.gameOverTimer -= dt;
+          if (this.gameOverTimer <= 0) {
+            this.triggerGameOver();
+            return;
+          }
+        }
+
         // Wave cleared: like the arcade original, wait 127 frames (~2.06 s) after the last
         // asteroid, and for any saucer to leave, before the next wave
-        if (this.asteroids.length === 0) {
+        if (this.asteroids.length === 0 && !this.gameOverTimer) {
           if (this.nextWaveTimer === null) this.nextWaveTimer = 127 / ARCADE_FPS;
           this.nextWaveTimer -= dt;
           if (this.nextWaveTimer <= 0 && !this.ufo) {
@@ -2142,8 +2220,9 @@
         }
 
         this.checkCollisions();
+        this.syncThrustSound();
 
-        if (this.score - this.lastExtraLifeScore >= 10000) {
+        if (this.score - this.lastExtraLifeScore >= 10000 && !this.gameOverTimer) {
           this.lives++;
           this.lastExtraLifeScore = Math.floor(this.score / 10000) * 10000;
           this.sound.playExtraLife();
@@ -2476,13 +2555,14 @@
 
         this.renderHUD(ctx, theme);
 
-        if (this.waveTransitionTimer > 0) {
+        const banner = this.gameOverTimer > 0 ? 'GAME OVER' : (this.waveTransitionTimer > 0 ? this.waveTransitionText : '');
+        if (banner) {
           ctx.save();
           ctx.font = "24px 'Press Start 2P', monospace";
           ctx.textAlign = 'center';
           ctx.fillStyle = theme.primary;
           ctx.shadowColor = theme.glow;
-          ctx.fillText(this.waveTransitionText, this.width / 2, this.height / 2 - 40);
+          ctx.fillText(banner, this.width / 2, this.height / 2 - 40);
           ctx.restore();
         }
 
@@ -2556,7 +2636,11 @@
           this.planet.pulse = (this.planet.pulse + cfg.pulseSpeed * ARCADE_FPS * dt) % (Math.PI * 2);
         }
 
-        this.update(dt);
+        // Simulate in steps of at most about one arcade frame. A slow device or a hitch
+        // can make dt up to 0.1 s; in one step a fast bullet would then jump ~80 px,
+        // straight past a small asteroid (about 20 px across).
+        const steps = Math.max(1, Math.ceil(dt * 60 - 0.25));
+        for (let i = 0; i < steps; i++) this.update(dt / steps);
         this.render();
 
         // Keep running only while playing; otherwise stop until requestRender()
@@ -2601,16 +2685,35 @@
         const fpsLine = document.createElement('div');
         fpsLine.textContent = 'screen refresh: measuring…';
         panel.appendChild(fpsLine);
+        // Audio: whether it's running or asleep, and how far its clock moved in the last
+        // second compared with real time (well under 100% means the audio is stalling,
+        // so sounds would come out late)
+        const audioLine = document.createElement('div');
+        panel.appendChild(audioLine);
         document.body.appendChild(panel);
         const game = window.__asteroidsGameInstance;
+        const audio = () => game && game.sound.ctx;
+        const showAudio = (clockPct) => {
+          const ctx = audio();
+          if (!ctx) { audioLine.textContent = 'audio: not started yet'; return; }
+          const latency = ctx.outputLatency || ctx.baseLatency;
+          audioLine.textContent = `audio: ${ctx.state}` + (game.sound.muted ? ' (muted)' : '') +
+            (clockPct === undefined || ctx.state !== 'running' ? '' : `, clock ${clockPct}% of real time`) +
+            (latency ? `, latency ${Math.round(latency * 1000)} ms` : '');
+        };
+        showAudio();
         let refreshes = 0, start = performance.now(), drawsAtStart = game ? game.renderCount || 0 : 0;
+        let audioAtStart = audio() ? audio().currentTime : null;
         const tick = (t) => {
           if (!panel.isConnected) return;
           refreshes++;
           if (t - start >= 1000) {
             const secs = (t - start) / 1000, draws = (game ? game.renderCount || 0 : 0) - drawsAtStart;
             fpsLine.textContent = `screen refresh: ${Math.round(refreshes / secs)} Hz, game drawing: ${Math.round(draws / secs)} fps`;
+            const ctx = audio();
+            showAudio(ctx && audioAtStart !== null ? Math.round((ctx.currentTime - audioAtStart) / secs * 100) : undefined);
             refreshes = 0; start = t; drawsAtStart = game ? game.renderCount || 0 : 0;
+            audioAtStart = ctx ? ctx.currentTime : null;
           }
           requestAnimationFrame(tick);
         };

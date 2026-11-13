@@ -2567,14 +2567,21 @@
     // --- Sound debugging (temporary) ---
     // To track down game sounds heard while paused. Records every sound the game starts
     // or stops, pauses and resumes and what input came just before, the page losing or
-    // regaining focus, and the audio clock (whether it's running, and any time it stalls
-    // or jumps compared with real time). Each entry: seconds since the page loaded, the
-    // game state, the audio clock (a=), then the event. The diagnostics panel shows the
-    // log and can copy it.
+    // regaining focus, and the audio starting or stopping. Each entry: seconds since the
+    // page loaded, the game state, the audio clock (a=), then the event; comparing the
+    // two clocks between entries shows if the audio stalled. Nothing runs in the
+    // background (no timers or polling), so a paused game stays as idle as without it.
+    // The diagnostics panel shows the log and can copy it.
     const soundLog = [];
+    let audioSeen = null;
     function slog(msg) {
       const game = window.__asteroidsGameInstance;
       const ctx = game && game.sound.ctx;
+      if (ctx && ctx !== audioSeen) {
+        audioSeen = ctx;
+        ctx.addEventListener('statechange', () => slog(`audio ${ctx.state}`));
+        slog(`audio created: ${ctx.state}, sample rate ${ctx.sampleRate}, base latency ${Math.round((ctx.baseLatency || 0) * 1000)} ms`);
+      }
       soundLog.push(`${(performance.now() / 1000).toFixed(2)} ${game ? game.state : '-'}` +
         (ctx ? ` a=${ctx.currentTime.toFixed(2)}` : '') + ` ${msg}`);
       if (soundLog.length > 500) soundLog.shift();
@@ -2616,27 +2623,6 @@
       for (const type of ['blur', 'focus', 'pagehide', 'pageshow']) window.addEventListener(type, () => slog(`window ${type}`));
       for (const type of ['freeze', 'resume']) document.addEventListener(type, () => slog(`page ${type}`));
 
-      // Audio clock: twice a second, compare how far it moved with real time
-      let ctxSeen = null, lastAudio = 0, lastReal = 0, lastLatency = 0;
-      setInterval(() => {
-        const game = window.__asteroidsGameInstance;
-        const ctx = game && game.sound.ctx;
-        if (!ctx) return;
-        const now = performance.now() / 1000;
-        if (ctx !== ctxSeen) {
-          ctxSeen = ctx;
-          slog(`audio created: ${ctx.state}, sample rate ${ctx.sampleRate}, base latency ${Math.round((ctx.baseLatency || 0) * 1000)} ms`);
-          ctx.addEventListener('statechange', () => slog(`audio ${ctx.state}`));
-        } else if (ctx.state === 'running') {
-          const moved = ctx.currentTime - lastAudio, real = now - lastReal;
-          if (Math.abs(moved - real) > 0.1) slog(`audio clock moved ${moved.toFixed(2)} s in ${real.toFixed(2)} s`);
-        }
-        const latency = ctx.outputLatency || 0;
-        if (Math.abs(latency - lastLatency) > 0.03) slog(`audio output latency ${Math.round(latency * 1000)} ms`);
-        lastLatency = latency;
-        lastAudio = ctx.currentTime;
-        lastReal = now;
-      }, 500);
     })();
 
     // Diagnostics: triple-tap (or triple-click) the ASTEROIDS logo to show screen

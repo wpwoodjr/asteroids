@@ -3079,10 +3079,13 @@
         const showAudio = (clockPct) => {
           const ctx = audio();
           if (!ctx) { audioLine.textContent = 'audio: not started yet'; return; }
-          const latency = ctx.outputLatency || ctx.baseLatency;
+          // Output latency is meant to be the whole trip to the speaker; buffer latency is
+          // only the audio engine's own buffer. Some browsers don't report output latency.
+          const ms = (s) => `${Math.round(s * 1000)} ms`;
+          const latency = `, latency: output ${ctx.outputLatency ? ms(ctx.outputLatency) : 'not reported'}` +
+            `, buffer ${ctx.baseLatency ? ms(ctx.baseLatency) : 'not reported'}`;
           audioLine.textContent = `audio: ${ctx.state}` + (game.sound.muted ? ' (muted)' : '') +
-            (clockPct === undefined || ctx.state !== 'running' ? '' : `, clock ${clockPct}% of real time`) +
-            (latency ? `, latency ${Math.round(latency * 1000)} ms` : '');
+            (clockPct === undefined || ctx.state !== 'running' ? '' : `, clock ${clockPct}% of real time`) + latency;
         };
         showAudio();
         let refreshes = 0, start = performance.now(), drawsAtStart = game ? game.renderCount || 0 : 0;

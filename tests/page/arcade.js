@@ -5,7 +5,7 @@ window.addEventListener('load', () => setTimeout(() => {
   const ok = (n, c, x = '') => out.push(`${c ? 'PASS' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`);
   const U = ARCADE_VEL_UNIT; // px/s per arcade velocity unit
   const units = (v) => Math.round(v / U);
-  const realRandom = Math.random;
+  const realRandom = g.random;
   // Run the game for `sec` seconds at 60 fps without saucer fire
   const step = (sec) => {
     for (let t = 0; t < sec - 1e-9; t += 1 / 60) { g.ufoBullets = []; g.update(1 / 60); }
@@ -79,9 +79,9 @@ window.addEventListener('load', () => setTimeout(() => {
     }
     ok('fragments start nudged apart like the original', nudgeOk && moved > 150, `${moved}/200 pairs moved off the spot`);
     ok('fragments can reach the 31-unit cap', sawFast);
-    Math.random = () => 0.5; // nudge of 0
+    g.random = () => 0.5; // nudge of 0
     const slow = g.createAsteroid(500, 400, 'medium', { vx: 0, vy: 2 * U });
-    Math.random = realRandom;
+    g.random = realRandom;
     ok('slow axes are raised to the 6-unit minimum', units(slow.vx) === 6 && units(slow.vy) === 6, `${units(slow.vx)}, ${units(slow.vy)}`);
 
     // Bullets: 63 units plus the ship's full velocity, each axis clamped to 111 units, 1.2 s life
@@ -150,8 +150,8 @@ window.addEventListener('load', () => setTimeout(() => {
     // Hyperspace: hidden and untouchable for 0.8 s, then back (safe roll)
     g.startGame(); g.ufoSpawnTimer = 999;
     g.asteroids = [still(100, 100)];
-    // Pin Math.random during the jump so the failure roll is floor(value * 32)
-    const jump = (roll) => { Math.random = () => (roll + 0.5) / 32; g.hyperspace(); Math.random = realRandom; };
+    // Pin the game's random numbers during the jump so the failure roll is floor(value * 32)
+    const jump = (roll) => { g.random = () => (roll + 0.5) / 32; g.hyperspace(); g.random = realRandom; };
     jump(3); // safe roll
     g.asteroids.push(still(g.ship.x, g.ship.y));
     const livesBefore = g.lives;
@@ -284,7 +284,7 @@ window.addEventListener('load', () => setTimeout(() => {
     ok('saucer fires when under the limit', g.ufoBullets.length === 2);
     g.ufo = null; g.sound.stopUfoSiren();
   } catch (e) { out.push('ERROR ' + e.stack); }
-  Math.random = realRandom;
+  g.random = realRandom;
   window.__testResults = out;
   window.__testDone = true;
 }, 300));

@@ -6,7 +6,7 @@ window.addEventListener('load', () => setTimeout(() => {
   const U = ARCADE_VEL_UNIT;
   const deg = (r) => (r * 180 / Math.PI).toFixed(1) + '°';
   const angleDiff = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
-  const realRandom = Math.random;
+  const realRandom = g.random;
   const still = (x, y) => { const a = g.createAsteroid(x, y, 'small'); a.vx = 0; a.vy = 0; return a; };
   // A quiet field: one parked asteroid far from the ship, nothing else
   const reset = () => {
@@ -44,19 +44,19 @@ window.addEventListener('load', () => setTimeout(() => {
     }
     ok('first three saucers are large', sizes.join('') === 'LLL', sizes.join(''));
     ok('reload shortens by 6 per saucer', g.saucerReload === 128, `${g.saucerReload}`);
-    Math.random = () => 0.99; // random byte 253 > 122/2
+    g.random = () => 0.99; // random byte 253 > 122/2
     g.ufoSpawnTimer = 1; g.saucerTick();
     const fourthSmall = g.ufo.isSmall; g.removeUfo();
     g.saucerReload = 128;
-    Math.random = () => 0.1;  // random byte 25 <= 122/2
+    g.random = () => 0.1;  // random byte 25 <= 122/2
     g.ufoSpawnTimer = 1; g.saucerTick();
     const fourthLarge = !g.ufo.isSmall; g.removeUfo();
-    Math.random = realRandom;
+    g.random = realRandom;
     ok('after that, size depends on a random byte vs half the reload', fourthSmall && fourthLarge);
     g.saucerReload = 128; g.score = 30000;
-    Math.random = () => 0.1;
+    g.random = () => 0.1;
     g.ufoSpawnTimer = 1; g.saucerTick();
-    Math.random = realRandom;
+    g.random = realRandom;
     ok('always small at 30,000+ points', g.ufo.isSmall);
     g.removeUfo(); g.score = 0;
     g.saucerReload = 35; g.ufoSpawnTimer = 1; g.saucerTick(); g.removeUfo();
@@ -153,14 +153,14 @@ window.addEventListener('load', () => setTimeout(() => {
     reset(); g.score = 0;
     g.spawnUfo(); g.ufo.isSmall = true; g.ufo.x = 980; g.ufo.y = 300; g.ufo.vx = 0; g.ufo.vy = 0; g.ufo.dirTicks = 1e9;
     g.ship.x = 20; g.ship.y = 300;
-    Math.random = () => 0.5; // zero aim error
+    g.random = () => 0.5; // zero aim error
     g.ufoBullets = []; g.ufo.shootCooldown = 1; g.saucerTick();
-    Math.random = realRandom;
+    g.random = realRandom;
     const wrapShot = g.ufoBullets[0];
     ok('small saucer aims the long way, not across the wrap', wrapShot.vx < 0, `vx ${wrapShot.vx.toFixed(0)}`);
     g.removeUfo();
   } catch (e) { out.push('ERROR ' + e.stack); }
-  Math.random = realRandom;
+  g.random = realRandom;
   window.__testResults = out;
   window.__testDone = true;
 }, 300));

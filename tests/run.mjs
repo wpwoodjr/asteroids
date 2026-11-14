@@ -117,6 +117,7 @@ const TESTS = {
   sound: pageTest('sound.js'),
   idle: pageTest('idle.js'),
   settings: pageTest('settings.js', ['set', 'check']),
+  replay: pageTest('replay.js', ['play', 'check']),
   palettes: pageTest('palettes.js'),
   styles: pageTest('styles.js'),
   fullscreen: async (ctx) => (await import('./cdp/fullscreen.mjs')).default(ctx),

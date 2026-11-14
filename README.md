@@ -56,6 +56,8 @@ On touch devices, use the on-screen buttons below the playfield to rotate, thrus
 
 The game pauses automatically when you switch to another tab or app, the screen turns off, or another window takes focus.
 
+During a replay, `Esc`, `Enter` or `Space` stops it, `P` pauses, and `1`, `2` or `4` sets the speed. Mute, colors and fullscreen still work; the ship's controls and gravity don't.
+
 ## Scoring
 
 | Target | Points |
@@ -74,6 +76,7 @@ You earn an extra ship every 10,000 points. Waves start with 4 large asteroids a
 - **Gravity mode:** a planet in the center pulls on the ship, asteroids, saucers and bullets. A saucer that crashes into it is destroyed with no change to your score, but an asteroid that falls in is swallowed and costs you its point value. Touching the planet costs a ship. If you turn gravity on while your ship is near the center, the ship is moved clear and briefly shielded.
 - **Arcade rules:** these follow the original's code. Hit sizes match the original's collision boxes, and asteroids are drawn to match them. At most 27 asteroids can be on screen at once: when the screen is that full, hitting an asteroid still scores but makes fewer fragments, or none. Bullets fly at about the ship's top speed plus the shooter's own velocity, and last 1.2 seconds. Your own bullets can hit you after wrapping around the screen. Saucer bullets and saucers smash asteroids (no points for you), and ramming an asteroid breaks it and scores it even though it costs you the ship. Saucers can have at most 2 bullets on screen. Hyperspace hides you for 0.8 s, and it can destroy your ship: the risk is up to 25%, rising as fewer asteroids remain. After you lose a ship, the new one appears with no shield, and only once no asteroid is near the center and no saucer is on screen.
 - **Arcade audio:** all sounds are generated live with the Web Audio API: laser, explosions, thrust rumble, saucer siren, hyperspace, and a heartbeat that, like the original's, starts each wave at about one beat per 0.85 s and speeds up over about 42 seconds to five beats a second.
+- **Replays:** after a game, **▶ Replay** plays it back from the start, and **★ Best Game** plays your highest-scoring game. The start screen offers the best game too. Replays run at 1×, 2× or 4× speed, with sound, at the gravity they were played with. Your last game and your best game are saved in the browser, so they're still there next time. Clearing the scores clears the best game too.
 - **Hall of fame:** the top 5 scores and the all-time high score are saved in the browser's `localStorage`. You can clear them from the Scores screen.
 - **Display options:** 5 color palettes and fullscreen. Each palette gives asteroids, your ship and the saucers their own colors, and bullets match whoever fired them. Classic is all white, like the arcade. The playfield always scales to 4:3 and adjusts for high-DPI screens.
 - **Saved settings:** your color palette, sound on/off and gravity level are saved in `localStorage`, so they stay the same the next time you play.
@@ -86,6 +89,7 @@ The game itself lives in `asteroids.html`. `manifest.webmanifest`, `sw.js` (the 
 - **`AsteroidsGame`** runs the game. It owns the state machine (`START`, `PLAYING`, `PAUSED`, `GAMEOVER`), entity updates, collisions, rendering and input.
 - The game simulates a fixed **1000 × 750** logical world and scales it onto the canvas. Each frame's time step is capped at 100 ms, so physics doesn't jump after the tab was in the background.
 - Physics uses frame-time-based velocity integration with screen wrap-around. Gravity is an inverse-square pull with a minimum-distance clamp, scaled for each entity type.
+- **Replays** store what the player did, not what was on screen: the game's random seed, its starting gravity, each frame's length and the controls held, and when shots, hyperspace jumps and gravity changes happened. Playing them back through the same game code repeats the game exactly, so ten minutes of play at 60 fps takes about 50,000 characters (about 100 KB as the browser stores it). This depends on the game being deterministic: gameplay randomness must come from `game.random` (or `game.fxRandom` for explosion particles), never `Math.random`. **When a change alters how a game plays out** (physics, timing, scoring, saucers, anything using `game.random`), bump `REPLAY_VERSION` in `asteroids.html`, so that replays saved before the change are dropped instead of playing out a different game. The `replay` test plays a whole game and checks that its replay ends identically.
 
 ### Styles
 
@@ -101,7 +105,7 @@ The fonts, [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) an
 
 ## Tests
 
-The `tests/` folder has automated checks for gameplay, arcade rules, physics, sounds, mouse input, saved settings, color palettes, embedded styles and fonts, the Fullscreen button, layout at different screen sizes, and PWA install and offline support. The runner serves the game locally and drives headless Chromium:
+The `tests/` folder has automated checks for gameplay, arcade rules, physics, sounds, mouse input, saved settings, replays, color palettes, embedded styles and fonts, the Fullscreen button, layout at different screen sizes, and PWA install and offline support. The runner serves the game locally and drives headless Chromium:
 
 ```sh
 node tests/run.mjs                 # all tests (Node 22+)

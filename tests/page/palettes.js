@@ -1,6 +1,6 @@
 // Color palettes: every element color is readable on the near-black background, the
 // ship and saucer differ (except all-white Classic), and the palette carries through
-// to drawing and the theme button. The Realistic palette draws shaded pictures.
+// to drawing and the theme button. The Nebula palette draws shaded pictures.
 window.addEventListener('load', () => setTimeout(() => {
   const g = window.__asteroidsGameInstance, out = [];
   const ok = (n, c, x = '') => out.push(`${c ? 'PASS' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`);
@@ -60,10 +60,10 @@ window.addEventListener('load', () => setTimeout(() => {
     ok('your bullets match the ship, saucer bullets match the saucer', has('fill', t.ship) && has('fill', t.saucer));
     g.removeUfo();
 
-    // Realistic: shaded pictures instead of lines. It draws everything, at every gravity
+    // Nebula: shaded pictures instead of lines. It draws everything, at every gravity
     // level, without using the game's random numbers (so replays play out the same)
     const real = THEMES.findIndex((x) => x.realistic);
-    ok('Realistic is the last palette', real === THEMES.length - 1 && THEMES[real].name === 'Realistic');
+    ok('Nebula is the last palette', real === THEMES.length - 1 && THEMES[real].name === 'Nebula');
     g.setTheme(real);
     g.startGame(); g.ufoSpawnTimer = 1e9;
     g.asteroids = [g.createAsteroid(200, 200, 'large'), g.createAsteroid(800, 600, 'small')];
@@ -81,8 +81,8 @@ window.addEventListener('load', () => setTimeout(() => {
       try { g.render(); } catch (e) { drawError = e; }
       g.random = gameRandom; g.fxRandom = fxRandom;
     }
-    ok('Realistic draws everything at every gravity level', !drawError, drawError ? String(drawError) : '');
-    ok("Realistic drawing doesn't use the game's random numbers", rolls === 0, `${rolls} rolls`);
+    ok('Nebula draws everything at every gravity level', !drawError, drawError ? String(drawError) : '');
+    ok("Nebula drawing doesn't use the game's random numbers", rolls === 0, `${rolls} rolls`);
     // Inside the rock (not on its outline) is painted, not left as dark sky
     const n = Math.max(3, Math.round(10 * g.scaleX));
     const px = g.ctx.getImageData(Math.round(200 * g.scaleX) - n, Math.round(200 * g.scaleY) - n, n * 2, n * 2).data;

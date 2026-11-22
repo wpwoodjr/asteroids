@@ -48,7 +48,7 @@ The installed app opens fullscreen and works offline. The offline support only w
 | `P` / `Esc` | Pause / resume |
 | `R` | Restart (when paused or after game over) |
 | `G` | Cycle gravity: Off → Low → Med → High |
-| `C` | Cycle color palette (Classic, Arcade Color, Green Screen, Amber, Deep Space, Realistic) |
+| `C` | Cycle color palette (Classic, Arcade Color, Green Screen, Amber, Deep Space, Nebula) |
 | `M` | Mute / unmute |
 | `F` | Fullscreen (hidden in the installed app, which is already fullscreen, and on iPhone) |
 
@@ -78,7 +78,7 @@ You earn an extra ship every 10,000 points. Waves start with 4 large asteroids a
 - **Arcade audio:** all sounds are generated live with the Web Audio API: laser, explosions, thrust rumble, saucer siren, hyperspace, and a heartbeat that, like the original's, starts each wave at about one beat per 0.85 s and speeds up over about 42 seconds to five beats a second.
 - **Replays:** after a game, **▶ Replay** plays it back from the start, and **★ Best Game** plays your highest-scoring game. The start screen offers the best game too. Replays run at 1×, 2× or 4× speed, with sound, at the gravity they were played with. Your last game and your best game are saved in the browser, so they're still there next time. Clearing the scores clears the best game too.
 - **Hall of fame:** the top 5 scores and the all-time high score are saved in the browser's `localStorage`. You can clear them from the Scores screen.
-- **Display options:** 6 color palettes and fullscreen. Each palette gives asteroids, your ship and the saucers their own colors, and bullets match whoever fired them. Classic is all white, like the arcade. **Realistic** swaps the glowing lines for shaded pictures: a starfield with faint nebulas, cratered rocks lit from one side, a metal ship with an engine flame, a saucer with chasing lights, banded planets, and fiery explosions. It only changes the look; the game plays the same. The playfield always scales to 4:3 and adjusts for high-DPI screens.
+- **Display options:** 6 color palettes and fullscreen. Each palette gives asteroids, your ship and the saucers their own colors, and bullets match whoever fired them. Classic is all white, like the arcade. **Nebula** swaps the glowing lines for shaded pictures: a starfield with faint nebulas, cratered rocks lit from one side, a metal starfighter whose engines fire as it thrusts and turns, a saucer with chasing lights, banded planets, and fiery explosions. It only changes the look; the game plays the same. The playfield always scales to 4:3 and adjusts for high-DPI screens.
 - **Saved settings:** your color palette, sound on/off and gravity level are saved in `localStorage`, so they stay the same the next time you play.
 
 ## How it works

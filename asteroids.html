@@ -848,7 +848,7 @@
       palette('Green Screen', '#3fa864', '#8dffa8', '#fbbf24'),  // dim green, bright green, amber
       palette('Amber', '#c28a2c', '#ffd166', '#38bdf8'),         // dim amber, bright amber, cyan
       palette('Deep Space', '#3b82f6', '#22d3ee', '#fbbf24'),    // blue rocks, cyan ship, amber saucer
-      { ...palette('Realistic', '#a8a29e', '#e2e8f0', '#f59e0b'), realistic: true } // shaded, textured objects (RealisticArt)
+      { ...palette('Nebula', '#a8a29e', '#e2e8f0', '#f59e0b'), realistic: true } // shaded, textured objects (RealisticArt)
     ];
     let currentThemeIdx = 0;
 
@@ -1019,8 +1019,8 @@
     }
 
     // --- Main Game Engine ---
-    // --- Realistic look ---
-    // The Realistic palette draws shaded, textured objects instead of glowing vector
+    // --- Nebula look ---
+    // The Nebula palette draws shaded, textured objects instead of glowing vector
     // lines: a starfield, rocky asteroids lit from the upper left, a metal ship and
     // saucer, a banded planet, and fiery explosions. Only the drawing changes, so the
     // game plays exactly the same. Drawing never uses the game's random numbers
@@ -3215,7 +3215,7 @@
         ctx.restore();
       }
 
-      // The glowing vector look of every palette except Realistic
+      // The glowing vector look of every palette except Nebula
       drawVectorWorld(ctx, theme) {
         ctx.fillStyle = '#030305';
         ctx.fillRect(0, 0, this.width, this.height);

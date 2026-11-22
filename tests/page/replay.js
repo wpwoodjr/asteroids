@@ -44,7 +44,11 @@ window.addEventListener('load', () => setTimeout(() => {
       try { localStorage.clear(); } catch (e) {}
       g.lastGame = g.bestGame = null;
       g.setGravityLevel(0, false);
+      // The same game every run (a new game's seed comes from Math.random)
+      const mathRandom = Math.random;
+      Math.random = () => 0.11;
       g.startGame();
+      Math.random = mathRandom;
       const held = { ArrowLeft: false, ArrowRight: false, ArrowUp: false };
       let frames = 0, pauses = 0, gravityChanges = 0, saucers = 0;
       const spawnUfo = g.spawnUfo;

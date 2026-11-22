@@ -1,6 +1,6 @@
 // Color palettes: every element color is readable on the near-black background, the
 // ship and saucer differ (except all-white Classic), and the palette carries through
-// to drawing and the theme button.
+// to drawing and the theme button. The Realistic palette draws shaded pictures.
 window.addEventListener('load', () => setTimeout(() => {
   const g = window.__asteroidsGameInstance, out = [];
   const ok = (n, c, x = '') => out.push(`${c ? 'PASS' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`);
@@ -12,7 +12,7 @@ window.addEventListener('load', () => setTimeout(() => {
   };
   const contrast = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
   try {
-    ok('5 palettes', THEMES.length === 5, THEMES.map((t) => t.name).join(', '));
+    ok('6 palettes', THEMES.length === 6, THEMES.map((t) => t.name).join(', '));
     // Colors within a palette must be clearly different hues (not just shades), except Classic
     const hue = (hex) => {
       const [r, gg, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
@@ -58,6 +58,41 @@ window.addEventListener('load', () => setTimeout(() => {
     ok('ship drawn in the ship color', has('stroke', t.ship));
     ok('saucer drawn in the saucer color', has('stroke', t.saucer));
     ok('your bullets match the ship, saucer bullets match the saucer', has('fill', t.ship) && has('fill', t.saucer));
+    g.removeUfo();
+
+    // Realistic: shaded pictures instead of lines. It draws everything, at every gravity
+    // level, without using the game's random numbers (so replays play out the same)
+    const real = THEMES.findIndex((x) => x.realistic);
+    ok('Realistic is the last palette', real === THEMES.length - 1 && THEMES[real].name === 'Realistic');
+    g.setTheme(real);
+    g.startGame(); g.ufoSpawnTimer = 1e9;
+    g.asteroids = [g.createAsteroid(200, 200, 'large'), g.createAsteroid(800, 600, 'small')];
+    g.spawnUfo(); g.ufo.x = 700; g.ufo.y = 200;
+    g.bullets = [{ x: 400, y: 600, vx: 300, vy: 0, life: 1 }];
+    g.ufoBullets = [{ x: 600, y: 600, vx: 0, vy: 200, life: 1 }];
+    g.createParticleBurst(500, 500, 20, THEMES[real].rock);
+    g.keys.thrust = true; g.ship.invulnerable = 1;
+    let rolls = 0, drawError = null;
+    const gameRandom = g.random, fxRandom = g.fxRandom, gravity = g.gravityLevel;
+    for (const level of [0, 1, 2, 3]) {
+      g.setGravityLevel(level, false);
+      g.random = () => { rolls++; return gameRandom(); };
+      g.fxRandom = () => { rolls++; return fxRandom(); };
+      try { g.render(); } catch (e) { drawError = e; }
+      g.random = gameRandom; g.fxRandom = fxRandom;
+    }
+    ok('Realistic draws everything at every gravity level', !drawError, drawError ? String(drawError) : '');
+    ok("Realistic drawing doesn't use the game's random numbers", rolls === 0, `${rolls} rolls`);
+    // Inside the rock (not on its outline) is painted, not left as dark sky
+    const n = Math.max(3, Math.round(10 * g.scaleX));
+    const px = g.ctx.getImageData(Math.round(200 * g.scaleX) - n, Math.round(200 * g.scaleY) - n, n * 2, n * 2).data;
+    let sum = 0;
+    for (let i = 0; i < px.length; i += 4) sum += px[i] + px[i + 1] + px[i + 2];
+    const avg = sum / (px.length / 4);
+    ok('the rock is painted solid, not outlined', avg > 60, `brightness ${avg.toFixed(0)} (sky is about 15)`);
+    ok('the page keeps the ship color for its tint', getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() === THEMES[real].ship);
+    g.keys.thrust = false;
+    g.setGravityLevel(gravity, false);
     g.removeUfo();
     g.setTheme(0);
   } catch (e) { out.push('ERROR ' + e.stack); }

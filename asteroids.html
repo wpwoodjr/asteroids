@@ -847,7 +847,8 @@
       palette('Arcade Color', '#cbd5e1', '#22d3ee', '#f87171'),  // gray rocks, cyan ship, red saucer
       palette('Green Screen', '#3fa864', '#8dffa8', '#fbbf24'),  // dim green, bright green, amber
       palette('Amber', '#c28a2c', '#ffd166', '#38bdf8'),         // dim amber, bright amber, cyan
-      palette('Deep Space', '#3b82f6', '#22d3ee', '#fbbf24')     // blue rocks, cyan ship, amber saucer
+      palette('Deep Space', '#3b82f6', '#22d3ee', '#fbbf24'),    // blue rocks, cyan ship, amber saucer
+      { ...palette('Realistic', '#a8a29e', '#e2e8f0', '#f59e0b'), realistic: true } // shaded, textured objects (RealisticArt)
     ];
     let currentThemeIdx = 0;
 
@@ -1018,6 +1019,521 @@
     }
 
     // --- Main Game Engine ---
+    // --- Realistic look ---
+    // The Realistic palette draws shaded, textured objects instead of glowing vector
+    // lines: a starfield, rocky asteroids lit from the upper left, a metal ship and
+    // saucer, a banded planet, and fiery explosions. Only the drawing changes, so the
+    // game plays exactly the same. Drawing never uses the game's random numbers
+    // (game.random/fxRandom), so replays aren't affected: textures come from fixed
+    // seeds and are drawn once, then reused.
+    const LIGHT = { x: -0.6, y: -0.8 }; // where the light comes from: the upper left
+    const SHIP_ART_SCALE = 1.2;
+    const ROCK_ART_SCALE = 1.08;
+
+    // A smooth outline through a rock's points (curves through the midpoints)
+    function rockPath(ctx, pts) {
+      const n = pts.length, mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+      ctx.beginPath();
+      const start = mid(pts[n - 1], pts[0]);
+      ctx.moveTo(start[0], start[1]);
+      for (let i = 0; i < n; i++) {
+        const m = mid(pts[i], pts[(i + 1) % n]);
+        ctx.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]);
+      }
+      ctx.closePath();
+    }
+
+    // The light direction as seen by an object turned by `angle`
+    const lightAt = (angle) => ({
+      x: LIGHT.x * Math.cos(angle) + LIGHT.y * Math.sin(angle),
+      y: -LIGHT.x * Math.sin(angle) + LIGHT.y * Math.cos(angle)
+    });
+
+    const PLANET_LOOKS = [
+      null,
+      { bands: ['#16324f', '#24507a', '#3d74a6', '#8fb8de', '#c9def0'], storm: '#e8f2fb' },  // low: icy blue
+      { bands: ['#6b4423', '#9c6b3f', '#c9a06f', '#e3cca2', '#8a5a33'], storm: '#b5542c' },  // med: banded gas giant
+      { bands: ['#3a0a08', '#6e160e', '#a8301a', '#e0602a', '#4d0f0b'], storm: '#ffb347' }   // high: molten
+    ];
+
+    class RealisticArt {
+      constructor() {
+        this.rocks = new WeakMap(); // each asteroid's textured picture
+        this.background = null;
+        this.brightStars = [];
+        this.planets = [];
+      }
+
+      canvas(w, h) {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.ceil(w));
+        c.height = Math.max(1, Math.ceil(h));
+        return c;
+      }
+
+      // Stars and faint nebulas, drawn once at the screen's resolution
+      drawBackground(ctx, game) {
+        const W = game.canvas.width, H = game.canvas.height;
+        if (!this.background || this.background.width !== W || this.background.height !== H) {
+          const c = this.canvas(W, H), g = c.getContext('2d'), k = W / game.width;
+          const rand = seededRandom(1979);
+          g.fillStyle = '#020309';
+          g.fillRect(0, 0, W, H);
+          g.scale(k, k);
+          const w = game.width, h = game.height;
+          // Nebulas: large, very faint clouds of color
+          for (const [color, n] of [['rgba(110, 50, 160, 0.09)', 4], ['rgba(40, 90, 170, 0.08)', 4], ['rgba(170, 60, 90, 0.05)', 3]]) {
+            for (let i = 0; i < n; i++) {
+              const x = rand() * w, y = rand() * h, r = 120 + rand() * 260;
+              const grad = g.createRadialGradient(x, y, 0, x, y, r);
+              grad.addColorStop(0, color);
+              grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+              g.fillStyle = grad;
+              g.fillRect(x - r, y - r, r * 2, r * 2);
+            }
+          }
+          // A faint band of distant stars across the sky
+          g.save();
+          g.translate(w / 2, h / 2);
+          g.rotate(-0.45);
+          const band = g.createLinearGradient(0, -110, 0, 110);
+          band.addColorStop(0, 'rgba(150, 160, 200, 0)');
+          band.addColorStop(0.5, 'rgba(150, 160, 200, 0.06)');
+          band.addColorStop(1, 'rgba(150, 160, 200, 0)');
+          g.fillStyle = band;
+          g.fillRect(-w, -110, w * 2, 220);
+          for (let i = 0; i < 700; i++) {
+            const x = (rand() - 0.5) * w * 1.6, y = (rand() + rand() + rand() - 1.5) * 70;
+            g.fillStyle = `rgba(220, 225, 255, ${0.15 + rand() * 0.35})`;
+            g.fillRect(x, y, 0.7, 0.7);
+          }
+          g.restore();
+          // Stars of different brightness and color
+          const tints = ['255, 255, 255', '200, 215, 255', '255, 240, 215', '255, 220, 190'];
+          for (let i = 0; i < 450; i++) {
+            const x = rand() * w, y = rand() * h, r = 0.35 + rand() * rand() * 1.1;
+            g.fillStyle = `rgba(${tints[Math.floor(rand() * tints.length)]}, ${0.35 + rand() * 0.65})`;
+            g.beginPath();
+            g.arc(x, y, r, 0, Math.PI * 2);
+            g.fill();
+          }
+          this.brightStars = [];
+          for (let i = 0; i < 18; i++) {
+            this.brightStars.push({ x: rand() * w, y: rand() * h, r: 1 + rand() * 0.8,
+              tint: tints[Math.floor(rand() * tints.length)], phase: rand() * 6.3, speed: 1 + rand() * 2 });
+          }
+          this.background = c;
+        }
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(this.background, 0, 0);
+        ctx.restore();
+        // A few bright stars twinkle gently
+        const t = performance.now() / 1000;
+        for (const s of this.brightStars) {
+          const a = 0.55 + 0.45 * Math.sin(t * s.speed + s.phase);
+          const glow = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 5);
+          glow.addColorStop(0, `rgba(${s.tint}, ${0.5 * a})`);
+          glow.addColorStop(1, `rgba(${s.tint}, 0)`);
+          ctx.fillStyle = glow;
+          ctx.fillRect(s.x - s.r * 5, s.y - s.r * 5, s.r * 10, s.r * 10);
+          ctx.fillStyle = `rgba(${s.tint}, ${0.6 + 0.4 * a})`;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // A rock's picture: its color, mottling, grit and craters, from a seed made from
+      // its own shape. The light and shadow are added when it's drawn, since it spins.
+      rockPicture(a, k) {
+        let pic = this.rocks.get(a);
+        if (pic && pic.k === k) return pic;
+        // The smooth outline cuts inside the corners, so it's enlarged a little to cover
+        // about the same area as the vector rock
+        const pts = a.vertices.map((v) => [Math.cos(v.angle) * v.radiusOffset * ROCK_ART_SCALE, Math.sin(v.angle) * v.radiusOffset * ROCK_ART_SCALE]);
+        const R = Math.max(...a.vertices.map((v) => v.radiusOffset)) * ROCK_ART_SCALE + 2;
+        let seed = 7;
+        for (const v of a.vertices) seed = Math.imul(seed ^ Math.round(v.radiusOffset * 1000), 2654435761);
+        const rand = seededRandom(seed);
+        const c = this.canvas(R * 2 * k, R * 2 * k), g = c.getContext('2d');
+        g.scale(k, k);
+        g.translate(R, R);
+        const hue = 22 + rand() * 18, sat = 6 + rand() * 12, light = 36 + rand() * 10;
+        rockPath(g, pts);
+        g.fillStyle = `hsl(${hue}, ${sat}%, ${light}%)`;
+        g.fill();
+        g.save();
+        g.clip();
+        const r0 = R - 2;
+        // Mottling: soft lighter and darker patches
+        for (let i = 0; i < 14; i++) {
+          const x = (rand() - 0.5) * r0 * 1.8, y = (rand() - 0.5) * r0 * 1.8, r = r0 * (0.2 + rand() * 0.4);
+          const grad = g.createRadialGradient(x, y, 0, x, y, r);
+          grad.addColorStop(0, rand() < 0.5 ? 'rgba(0, 0, 0, 0.22)' : 'rgba(255, 245, 230, 0.12)');
+          grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          g.fillStyle = grad;
+          g.fillRect(x - r, y - r, r * 2, r * 2);
+        }
+        // Grit
+        for (let i = 0; i < r0 * r0 * 0.5; i++) {
+          g.fillStyle = rand() < 0.6 ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 250, 240, 0.12)';
+          const s = 0.5 + rand() * 0.9;
+          g.fillRect((rand() - 0.5) * r0 * 2, (rand() - 0.5) * r0 * 2, s, s);
+        }
+        // Craters: a dark bowl with a pale rim
+        const craters = r0 > 30 ? 5 : r0 > 15 ? 3 : 2;
+        for (let i = 0; i < craters; i++) {
+          const d = rand() * r0 * 0.6, ang = rand() * Math.PI * 2, cr = r0 * (0.1 + rand() * 0.14);
+          const x = Math.cos(ang) * d, y = Math.sin(ang) * d;
+          const bowl = g.createRadialGradient(x, y, 0, x, y, cr);
+          bowl.addColorStop(0, 'rgba(0, 0, 0, 0.45)');
+          bowl.addColorStop(0.75, 'rgba(0, 0, 0, 0.3)');
+          bowl.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          g.fillStyle = bowl;
+          g.beginPath();
+          g.arc(x, y, cr, 0, Math.PI * 2);
+          g.fill();
+          g.strokeStyle = 'rgba(255, 245, 230, 0.16)';
+          g.lineWidth = Math.max(0.6, cr * 0.22);
+          g.beginPath();
+          g.arc(x, y, cr * 1.05, 0, Math.PI * 2);
+          g.stroke();
+        }
+        g.restore();
+        pic = { canvas: c, k, R, pts };
+        this.rocks.set(a, pic);
+        return pic;
+      }
+
+      drawAsteroid(ctx, a, k) {
+        const pic = this.rockPicture(a, k);
+        ctx.save();
+        ctx.translate(a.x, a.y);
+        ctx.rotate(a.rot);
+        ctx.drawImage(pic.canvas, -pic.R, -pic.R, pic.R * 2, pic.R * 2);
+        // Sunlit on the side facing the light, in shadow on the far side
+        const l = lightAt(a.rot), R = pic.R;
+        const shade = ctx.createLinearGradient(l.x * R, l.y * R, -l.x * R, -l.y * R);
+        shade.addColorStop(0, 'rgba(255, 240, 215, 0.28)');
+        shade.addColorStop(0.4, 'rgba(0, 0, 0, 0)');
+        shade.addColorStop(0.75, 'rgba(0, 0, 0, 0.45)');
+        shade.addColorStop(1, 'rgba(0, 0, 0, 0.8)');
+        rockPath(ctx, pic.pts);
+        ctx.fillStyle = shade;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // The planet: a banded world turning under fixed sunlight, with a glowing atmosphere
+      planetPicture(level, R, k) {
+        let pic = this.planets[level];
+        if (pic && pic.k === k && pic.R === R) return pic;
+        const look = PLANET_LOOKS[level], rand = seededRandom(400 + level);
+        const W = R * 4, H = R * 2;
+        const c = this.canvas(W * k, H * k), g = c.getContext('2d');
+        g.scale(k, k);
+        // Bands of varying width and color, with wavy edges
+        let y = 0;
+        while (y < H) {
+          const bh = 2 + rand() * R * 0.28, color = look.bands[Math.floor(rand() * look.bands.length)];
+          g.fillStyle = color;
+          g.beginPath();
+          g.moveTo(0, y);
+          for (let x = 0; x <= W; x += 6) g.lineTo(x, y + Math.sin(x / W * Math.PI * 2 * 3 + y) * 1.5);
+          g.lineTo(W, y + bh + 2);
+          g.lineTo(0, y + bh + 2);
+          g.fill();
+          y += bh;
+        }
+        // Fine streaks and a couple of storms (drawn twice so the picture wraps around)
+        for (let i = 0; i < 60; i++) {
+          g.fillStyle = `rgba(${rand() < 0.5 ? '0, 0, 0' : '255, 255, 255'}, ${0.05 + rand() * 0.08})`;
+          g.fillRect(rand() * W, rand() * H, 10 + rand() * R, 0.6 + rand() * 1.4);
+        }
+        for (let i = 0; i < 2; i++) {
+          const sx = rand() * W, sy = H * (0.3 + rand() * 0.4), rx = R * (0.14 + rand() * 0.1), ry = rx * 0.45;
+          for (const x of [sx, sx - W, sx + W]) {
+            g.save();
+            g.translate(x, sy);
+            g.scale(1, ry / rx);
+            const storm = g.createRadialGradient(0, 0, 0, 0, 0, rx);
+            storm.addColorStop(0, look.storm);
+            storm.addColorStop(0.6, look.storm);
+            storm.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            g.globalAlpha = 0.55;
+            g.fillStyle = storm;
+            g.beginPath();
+            g.arc(0, 0, rx, 0, Math.PI * 2);
+            g.fill();
+            g.restore();
+          }
+        }
+        pic = { canvas: c, k, R, W };
+        this.planets[level] = pic;
+        return pic;
+      }
+
+      drawPlanet(ctx, game, k) {
+        const level = game.gravityLevel, cfg = GRAVITY_LEVELS[level], p = game.planet, R = p.radius;
+        const pic = this.planetPicture(level, R, k);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        // The pull: faint rings, as in the other palettes
+        for (let r = 1; r <= cfg.rings; r++) {
+          ctx.beginPath();
+          ctx.arc(0, 0, R + r * 44 + Math.sin(p.pulse + r * 0.4) * (level + 1), 0, Math.PI * 2);
+          ctx.strokeStyle = cfg.ringColor;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([6, 14]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        // Atmosphere
+        const air = ctx.createRadialGradient(0, 0, R * 0.9, 0, 0, R * 1.35);
+        air.addColorStop(0, glowOf(cfg.color, 0.45));
+        air.addColorStop(1, glowOf(cfg.color, 0));
+        ctx.fillStyle = air;
+        ctx.beginPath();
+        ctx.arc(0, 0, R * 1.35, 0, Math.PI * 2);
+        ctx.fill();
+        // Surface, turning with the planet
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, R, 0, Math.PI * 2);
+        ctx.clip();
+        const shift = ((p.rot * R) % pic.W + pic.W) % pic.W;
+        ctx.drawImage(pic.canvas, -R - shift, -R, pic.W, R * 2);
+        ctx.drawImage(pic.canvas, -R - shift + pic.W, -R, pic.W, R * 2);
+        // Lit from the upper left, dark on the night side
+        const lx = LIGHT.x * R * 0.5, ly = LIGHT.y * R * 0.5;
+        const shade = ctx.createRadialGradient(lx, ly, 0, lx, ly, R * 1.5);
+        shade.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
+        shade.addColorStop(0.25, 'rgba(0, 0, 0, 0)');
+        shade.addColorStop(0.55, 'rgba(0, 0, 0, 0.5)');
+        shade.addColorStop(0.8, 'rgba(0, 0, 0, 0.88)');
+        shade.addColorStop(1, 'rgba(0, 0, 0, 0.96)');
+        ctx.fillStyle = shade;
+        ctx.fillRect(-R, -R, R * 2, R * 2);
+        ctx.restore();
+        // Thin bright edge where the sunlight catches the atmosphere
+        ctx.strokeStyle = glowOf(cfg.color, 0.5);
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(0, 0, R, Math.PI * 0.85, Math.PI * 1.7);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      drawShip(ctx, game) {
+        const s = game.ship;
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(s.angle);
+        // Same outline as the vector ship, enlarged to match how big the glowing lines look
+        ctx.scale(SHIP_ART_SCALE, SHIP_ART_SCALE);
+        const blink = s.invulnerable > 0 && Math.floor(Date.now() / 100) % 2 === 0;
+        if (!blink) {
+          // Engine flame, behind the hull
+          if (game.keys.thrust) {
+            ctx.globalCompositeOperation = 'lighter';
+            const len = 13 + Math.random() * 7;
+            const flame = ctx.createLinearGradient(-7, 0, -7 - len, 0);
+            flame.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+            flame.addColorStop(0.25, 'rgba(253, 224, 71, 0.9)');
+            flame.addColorStop(0.6, 'rgba(249, 115, 22, 0.6)');
+            flame.addColorStop(1, 'rgba(239, 68, 68, 0)');
+            ctx.fillStyle = flame;
+            ctx.beginPath();
+            ctx.moveTo(-7, -3.6);
+            ctx.quadraticCurveTo(-7 - len * 0.5, -2.5, -7 - len, 0);
+            ctx.quadraticCurveTo(-7 - len * 0.5, 2.5, -7, 3.6);
+            ctx.fill();
+            const glow = ctx.createRadialGradient(-9, 0, 0, -9, 0, 14);
+            glow.addColorStop(0, 'rgba(251, 146, 60, 0.45)');
+            glow.addColorStop(1, 'rgba(251, 146, 60, 0)');
+            ctx.fillStyle = glow;
+            ctx.fillRect(-23, -14, 28, 28);
+            ctx.globalCompositeOperation = 'source-over';
+          }
+          // Hull: plain metal, lit from the upper left. One color, so its shape and the
+          // way it points stay clear at this small size
+          const l = lightAt(s.angle);
+          const metal = ctx.createLinearGradient(l.x * 11, l.y * 11, -l.x * 11, -l.y * 11);
+          metal.addColorStop(0, '#f1f5f9');
+          metal.addColorStop(0.5, '#a8b3c2');
+          metal.addColorStop(1, '#4b5563');
+          ctx.beginPath();
+          ctx.moveTo(14, 0);
+          ctx.lineTo(-12, -9);
+          ctx.lineTo(-7, 0);
+          ctx.lineTo(-12, 9);
+          ctx.closePath();
+          ctx.fillStyle = metal;
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(10, 15, 25, 0.85)';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+          // Small dark canopy toward the nose
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.ellipse(5, 0, 3.2, 1.6, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(186, 230, 253, 0.55)';
+          ctx.beginPath();
+          ctx.ellipse(5.8 + l.x * 0.8, l.y * 0.6, 1.1, 0.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (s.invulnerable > 0) {
+          // Force field bubble (sized in world units, like the vector one)
+          ctx.scale(1 / SHIP_ART_SCALE, 1 / SHIP_ART_SCALE);
+          const field = ctx.createRadialGradient(0, 0, 10, 0, 0, 21);
+          field.addColorStop(0, 'rgba(56, 189, 248, 0)');
+          field.addColorStop(0.85, 'rgba(56, 189, 248, 0.18)');
+          field.addColorStop(1, 'rgba(125, 211, 252, 0.45)');
+          ctx.fillStyle = field;
+          ctx.beginPath();
+          ctx.arc(0, 0, 21, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      drawSaucer(ctx, u) {
+        const r = u.radius;
+        // The small saucer, the one that aims at you, has red lights; the large one amber
+        const lights = u.isSmall
+          ? { on: '#fecaca', off: '#b91c1c', glow: '255, 80, 80', under: '239, 68, 68' }
+          : { on: '#fde68a', off: '#b45309', glow: '253, 230, 138', under: '245, 158, 11' };
+        ctx.save();
+        ctx.translate(u.x, u.y);
+        // Glow underneath
+        const under = ctx.createRadialGradient(0, r * 0.3, 0, 0, r * 0.3, r * 1.1);
+        under.addColorStop(0, `rgba(${lights.under}, 0.3)`);
+        under.addColorStop(1, `rgba(${lights.under}, 0)`);
+        ctx.fillStyle = under;
+        ctx.fillRect(-r * 1.2, -r * 0.8, r * 2.4, r * 2.2);
+        // Glass dome with a figure-less dark interior and a highlight
+        const dome = ctx.createRadialGradient(-r * 0.15, -r * 0.4, r * 0.05, 0, -r * 0.1, r * 0.5);
+        dome.addColorStop(0, 'rgba(224, 242, 254, 0.95)');
+        dome.addColorStop(0.4, 'rgba(56, 120, 160, 0.85)');
+        dome.addColorStop(1, 'rgba(10, 30, 50, 0.95)');
+        ctx.fillStyle = dome;
+        ctx.beginPath();
+        ctx.ellipse(0, -r * 0.08, r * 0.45, r * 0.45, 0, Math.PI, 0);
+        ctx.fill();
+        // Metal disc
+        const metal = ctx.createLinearGradient(0, -r * 0.3, 0, r * 0.45);
+        metal.addColorStop(0, '#f1f5f9');
+        metal.addColorStop(0.45, '#94a3b8');
+        metal.addColorStop(0.55, '#64748b');
+        metal.addColorStop(1, '#1e293b');
+        ctx.fillStyle = metal;
+        ctx.beginPath();
+        ctx.ellipse(0, r * 0.08, r, r * 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(10, 15, 25, 0.8)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        // Running lights chasing around the rim
+        const lit = Math.floor(performance.now() / 110) % 5;
+        for (let i = 0; i < 5; i++) {
+          const x = (i - 2) * r * 0.36, y = r * 0.12;
+          ctx.fillStyle = i === lit ? lights.on : lights.off;
+          ctx.beginPath();
+          ctx.arc(x, y, Math.max(1, r * 0.07), 0, Math.PI * 2);
+          ctx.fill();
+          if (i === lit) {
+            const g = ctx.createRadialGradient(x, y, 0, x, y, r * 0.35);
+            g.addColorStop(0, `rgba(${lights.glow}, 0.6)`);
+            g.addColorStop(1, `rgba(${lights.glow}, 0)`);
+            ctx.fillStyle = g;
+            ctx.fillRect(x - r * 0.35, y - r * 0.35, r * 0.7, r * 0.7);
+          }
+        }
+        ctx.restore();
+      }
+
+      // Bolts of light with a short trail
+      drawBolt(ctx, b, core, glow) {
+        const speed = Math.hypot(b.vx || 0, b.vy || 0) || 1;
+        const tx = b.x - (b.vx || 0) / speed * 9, ty = b.y - (b.vy || 0) / speed * 9;
+        const trail = ctx.createLinearGradient(b.x, b.y, tx, ty);
+        trail.addColorStop(0, glow(0.7));
+        trail.addColorStop(1, glow(0));
+        ctx.strokeStyle = trail;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+        const halo = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 6);
+        halo.addColorStop(0, glow(0.6));
+        halo.addColorStop(1, glow(0));
+        ctx.fillStyle = halo;
+        ctx.fillRect(b.x - 6, b.y - 6, 12, 12);
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Explosions: hot sparks that cool from white to red, and tumbling debris
+      drawParticles(ctx, particles, theme) {
+        for (const p of particles) {
+          const f = p.life / p.maxLife;
+          if (p.isLine) {
+            ctx.globalAlpha = Math.min(1, f * 1.5);
+            ctx.strokeStyle = p.color === theme.rock ? '#8a7f72' : '#cbd5e1';
+            ctx.lineWidth = 1.8;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rot);
+            ctx.beginPath();
+            ctx.moveTo(-p.len / 2, 0);
+            ctx.lineTo(p.len / 2, 0);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of particles) {
+          if (p.isLine) continue;
+          const f = p.life / p.maxLife;
+          const rgb = f > 0.7 ? '255, 247, 214' : f > 0.4 ? '253, 186, 116' : '239, 90, 50';
+          ctx.globalAlpha = f;
+          const r = 2.5 + 3 * f, glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+          glow.addColorStop(0, `rgba(${rgb}, 0.5)`);
+          glow.addColorStop(1, `rgba(${rgb}, 0)`);
+          ctx.fillStyle = glow;
+          ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+          ctx.fillStyle = `rgb(${rgb})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 0.8 + f, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+      }
+
+      drawWorld(ctx, game, theme) {
+        const k = game.scaleX;
+        ctx.save();
+        ctx.shadowBlur = 0;
+        this.drawBackground(ctx, game);
+        if (game.gravityMode) this.drawPlanet(ctx, game, k);
+        for (const a of game.asteroids) this.drawAsteroid(ctx, a, k);
+        if (game.ufo) this.drawSaucer(ctx, game.ufo);
+        if (game.isShipActive()) this.drawShip(ctx, game);
+        ctx.globalCompositeOperation = 'lighter';
+        for (const b of game.bullets) this.drawBolt(ctx, b, '#f0f9ff', (a) => `rgba(125, 211, 252, ${a})`);
+        for (const b of game.ufoBullets) this.drawBolt(ctx, b, '#fff7ed', (a) => `rgba(251, 113, 60, ${a})`);
+        ctx.globalCompositeOperation = 'source-over';
+        this.drawParticles(ctx, game.particles, theme);
+        ctx.restore();
+      }
+    }
+
     class AsteroidsGame {
       constructor() {
         this.canvas = document.getElementById('game-canvas');
@@ -2622,6 +3138,45 @@
         ctx.save();
         ctx.scale(this.scaleX, this.scaleY);
 
+        if (theme.realistic) {
+          if (!this.art) this.art = new RealisticArt();
+          this.art.drawWorld(ctx, this, theme);
+        } else {
+          this.drawVectorWorld(ctx, theme);
+        }
+        ctx.shadowBlur = 8;
+
+        // Draw Floating Score Popups
+        ctx.font = "14px 'Share Tech Mono', monospace";
+        ctx.textAlign = 'center';
+        for (const ft of this.floatingTexts) {
+          const alpha = ft.life / ft.maxLife;
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = ft.color;
+          ctx.shadowColor = ft.color;
+          ctx.fillText(ft.text, ft.x, ft.y);
+          ctx.restore();
+        }
+
+        this.renderHUD(ctx, theme);
+
+        const banner = this.gameOverTimer > 0 ? 'GAME OVER' : (this.waveTransitionTimer > 0 ? this.waveTransitionText : '');
+        if (banner) {
+          ctx.save();
+          ctx.font = "24px 'Press Start 2P', monospace";
+          ctx.textAlign = 'center';
+          ctx.fillStyle = theme.primary;
+          ctx.shadowColor = theme.glow;
+          ctx.fillText(banner, this.width / 2, this.height / 2 - 40);
+          ctx.restore();
+        }
+
+        ctx.restore();
+      }
+
+      // The glowing vector look of every palette except Realistic
+      drawVectorWorld(ctx, theme) {
         ctx.fillStyle = '#030305';
         ctx.fillRect(0, 0, this.width, this.height);
 
@@ -2820,34 +3375,6 @@
           }
           ctx.restore();
         }
-
-        // Draw Floating Score Popups
-        ctx.font = "14px 'Share Tech Mono', monospace";
-        ctx.textAlign = 'center';
-        for (const ft of this.floatingTexts) {
-          const alpha = ft.life / ft.maxLife;
-          ctx.save();
-          ctx.globalAlpha = alpha;
-          ctx.fillStyle = ft.color;
-          ctx.shadowColor = ft.color;
-          ctx.fillText(ft.text, ft.x, ft.y);
-          ctx.restore();
-        }
-
-        this.renderHUD(ctx, theme);
-
-        const banner = this.gameOverTimer > 0 ? 'GAME OVER' : (this.waveTransitionTimer > 0 ? this.waveTransitionText : '');
-        if (banner) {
-          ctx.save();
-          ctx.font = "24px 'Press Start 2P', monospace";
-          ctx.textAlign = 'center';
-          ctx.fillStyle = theme.primary;
-          ctx.shadowColor = theme.glow;
-          ctx.fillText(banner, this.width / 2, this.height / 2 - 40);
-          ctx.restore();
-        }
-
-        ctx.restore();
       }
 
       renderHUD(ctx, theme) {

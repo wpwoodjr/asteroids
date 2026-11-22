@@ -59,7 +59,7 @@ window.addEventListener('load', () => setTimeout(async () => {
     g.ship.invulnerable = 1e9;
     for (let i = 0; i < 200; i++) { g.ufoSpawnTimer = 1e9; g.update(1 / 60); }
     ok('each game opens on the lower note, then alternates', steps.length >= 3 && steps.every((s, i) => s === i % 2), steps.join());
-    // After a respawn the first beat is the lower note, whatever came before
+    // A respawn doesn't restart the pair: the notes keep alternating, as in the arcade
     for (const beatsBefore of [1, 2]) {
       g.startGame(); g.ufoSpawnTimer = 1e9;
       g.asteroids = [g.createAsteroid(60, 60, 'small')]; g.asteroids[0].vx = g.asteroids[0].vy = 0;
@@ -69,7 +69,8 @@ window.addEventListener('load', () => setTimeout(async () => {
       while (!g.isShipActive()) { g.ufoSpawnTimer = 1e9; g.update(1 / 60); }
       steps.length = 0;
       while (steps.length < 2) { g.ufoSpawnTimer = 1e9; g.update(1 / 60); }
-      ok(`respawn restarts on the lower note (after ${beatsBefore} beat${beatsBefore > 1 ? 's' : ''})`, steps.join() === '0,1', steps.join());
+      const expected = beatsBefore % 2 ? '1,0' : '0,1';
+      ok(`notes keep alternating across a respawn (after ${beatsBefore} beat${beatsBefore > 1 ? 's' : ''})`, steps.join() === expected, steps.join());
     }
     g.sound.playHeartbeat = realBeat;
     // Each note holds a steady pitch (no bend)

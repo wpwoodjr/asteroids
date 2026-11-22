@@ -2523,7 +2523,6 @@
 
       spawnShip() {
         const { x: spawnX, y: spawnY } = this.spawnPoint();
-        this.heartbeatStep = 0; // the heartbeat restarts on the lower note
         this.ship = {
           x: spawnX,
           y: spawnY,

@@ -286,7 +286,7 @@
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">G</span> : Gravity Mode</li>
                 <li id="help-fullscreen-key"><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">F</span> : Fullscreen</li>
               </ul>
-              <p class="mt-1 text-neutral-400 text-[11px] sm:text-xs">Mouse, on the playfield: left click fires, hold the right button to thrust.</p>
+              <p class="mt-1 text-neutral-400 text-[11px] sm:text-xs">Mouse: left click fires, hold the right button to thrust.</p>
             </div>
             <div class="border-t border-neutral-800 pt-2">
               <h4 class="font-bold text-white mb-1">PRO SURVIVAL TIPS</h4>
@@ -1058,6 +1058,8 @@
       { bands: ['#3a0a08', '#6e160e', '#a8301a', '#e0602a', '#4d0f0b'], storm: '#ffb347' }   // high: molten
     ];
 
+    const MOUSE_HIDE_MS = 1000; // the mouse pointer hides over the playfield after this long still
+    const MOUSE_SHOW_PX = 150; // ...and comes back once moved this far (CSS px) from where it hid
     const NEBULA_ZOOM_SECONDS = 90; // the nebulas double in size this often
     const STAR_APPROACH_SPEED = 0.012; // depth per second (stars start at depth 1)
 
@@ -2217,33 +2219,61 @@
       }
 
       setupTouchControls() {
-        // Mouse on the playfield (mouse only, so touch taps there do nothing): the left
-        // button fires one shot per press and the right button thrusts while held. A
-        // press or release of one button while the other is held arrives as a
-        // pointermove with e.button set, so those are handled too.
+        // Mouse (mouse only, so touch taps do nothing): the left button fires one shot per
+        // press and the right button thrusts while held. While playing this works anywhere
+        // on the page, not just over the playfield, since the pointer is hidden there and
+        // easily drifts off it; a press on an actual button (header, touch buttons) is left
+        // to that button. A press or release of one button while the other is held arrives
+        // as a pointermove with e.button set, so those are handled too.
+        const playing = () => this.state === 'PLAYING' && !this.replay;
+        const onButton = (e) => e.target instanceof Element && !!e.target.closest('button, a, input, select, textarea, label');
         const onMouse = (e) => {
           if (e.pointerType !== 'mouse') return;
+          // A release always ends the thrust, whatever the pointer is over
+          if (e.button === 2 && !(e.buttons & 2)) { if (!this.replay) this.keys.thrust = false; return; }
+          if (e.button !== 0 && e.button !== 2) return;
+          const onPlayfield = e.target === this.canvas;
+          if (!playing() || (!onPlayfield && onButton(e))) return;
           if (e.type === 'pointerdown') {
             e.preventDefault();
             this.sound.ensureActive();
-            // Keep getting this mouse's events (the release) if it leaves the playfield
+            // Keep getting this mouse's events (the release) wherever it goes
             try { this.canvas.setPointerCapture(e.pointerId); } catch (err) { /* not a live pointer */ }
           }
-          if (e.button === 0 && (e.buttons & 1) && this.state === 'PLAYING' && !this.replay) this.fireBullet();
-          if (e.button === 2 && !this.replay) this.keys.thrust = (e.buttons & 2) !== 0;
+          if (e.button === 0 && (e.buttons & 1)) this.fireBullet();
+          if (e.button === 2 && (e.buttons & 2)) this.keys.thrust = true;
         };
-        for (const type of ['pointerdown', 'pointermove', 'pointerup']) this.canvas.addEventListener(type, onMouse);
-        this.canvas.addEventListener('pointercancel', (e) => {
+        for (const type of ['pointerdown', 'pointermove', 'pointerup']) document.addEventListener(type, onMouse);
+        // Moving the mouse keeps its pointer showing (see render()). Once it's hidden, only
+        // a larger move (MOUSE_SHOW_PX from where it hid) brings it back, so the small
+        // nudges of clicking don't. A button pressed while another is held also arrives
+        // as a pointermove, but with e.button set.
+        this.mouseMovedAt = performance.now();
+        this.mouseHiddenAt = null; // where the pointer was when it hid
+        document.addEventListener('pointermove', (e) => {
+          if (e.pointerType !== 'mouse' || e.button !== -1) return;
+          this.mousePos = { x: e.clientX, y: e.clientY };
+          if (this.canvas.style.cursor === 'none') {
+            // (If it hid before any move was seen, measure from this first one)
+            const hid = this.mouseHiddenAt || (this.mouseHiddenAt = { ...this.mousePos });
+            if (Math.hypot(e.clientX - hid.x, e.clientY - hid.y) < MOUSE_SHOW_PX) return;
+          }
+          this.mouseMovedAt = performance.now();
+          if (this.canvas.style.cursor) this.canvas.style.cursor = '';
+        });
+        document.addEventListener('pointercancel', (e) => {
           if (e.pointerType === 'mouse' && !this.replay) this.keys.thrust = false;
         });
-        // Keep the browser's own mouse and long-press actions off the playfield. A right
-        // click (its menu), a two-finger tap on a touchpad or a long press would otherwise open a
+        // Keep the browser's own mouse and long-press actions out of the game: on the
+        // playfield always, and anywhere but buttons while playing. A right click (its
+        // menu), a two-finger tap on a touchpad or a long press would otherwise open a
         // menu or start a selection or drag, and the next clicks would close or end that
         // instead of firing
-        for (const type of ['contextmenu', 'selectstart', 'dragstart']) {
-          this.canvas.addEventListener(type, (e) => e.preventDefault());
+        for (const type of ['contextmenu', 'selectstart', 'dragstart', 'mousedown']) {
+          document.addEventListener(type, (e) => {
+            if (e.target === this.canvas || (playing() && !onButton(e))) e.preventDefault();
+          });
         }
-        this.canvas.addEventListener('mousedown', (e) => e.preventDefault());
 
         // The ship's buttons do nothing during a replay; Pause still works
         const bindTouch = (id, onDown, onUp, duringReplay = false) => {
@@ -3251,10 +3281,16 @@
       // --- Rendering Loop ---
       render() {
         this.renderCount = (this.renderCount || 0) + 1; // for the diagnostics panel's fps readout
-        // The mouse pointer is hidden over the playfield while you play (a click anywhere
-        // fires), and shown on the other screens and during replays
-        const cursor = this.state === 'PLAYING' && !this.replay ? 'none' : '';
-        if (this.canvas.style.cursor !== cursor) this.canvas.style.cursor = cursor;
+        // While you play, the mouse pointer disappears from the playfield once it has
+        // been still for a second (a click anywhere fires, so it only gets in the way),
+        // and moving it brings it back. It always shows outside the playfield, on the
+        // other screens and during replays.
+        const cursor = this.state === 'PLAYING' && !this.replay &&
+          performance.now() - this.mouseMovedAt >= MOUSE_HIDE_MS ? 'none' : '';
+        if (this.canvas.style.cursor !== cursor) {
+          this.canvas.style.cursor = cursor;
+          if (cursor) this.mouseHiddenAt = this.mousePos || null;
+        }
         const ctx = this.ctx;
         const theme = THEMES[currentThemeIdx];
 

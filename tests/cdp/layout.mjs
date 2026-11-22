@@ -70,6 +70,21 @@ export default async function ({ send, ev, base, sleep }) {
     ok(`${label}: playfield not smaller than with one row`, t.w >= t.oneRowW - 1, `${Math.round(t.w)} vs ${Math.round(t.oneRowW)} px wide`);
   }
 
+  // The touch buttons follow the playfield when the layout changes without a window
+  // resize event (as when entering fullscreen on some phones): here the header grows
+  // taller, then back
+  await send('Emulation.setDeviceMetricsOverride', { width: 852, height: 883, deviceScaleFactor: 2.4375, mobile: true });
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  for (const [step, pad] of [['header grows', '80px'], ['header shrinks back', '']]) {
+    const gap = await ev(`new Promise((done) => {
+      document.querySelector('header').style.paddingBottom = '${pad}';
+      setTimeout(() => done(document.getElementById('touch-controls').getBoundingClientRect().top -
+        document.getElementById('game-frame').getBoundingClientRect().bottom), 300);
+    })`);
+    ok(`layout change without a resize event (${step}): touch buttons stay just under the playfield`, gap >= 0 && gap <= 12, `${Math.round(gap)} px gap`);
+  }
+
   // Phone outside fullscreen, with a 32 px gesture-bar strip at the bottom: the touch
   // buttons stay clear of it, and only the footer line uses it
   await send('Emulation.setDeviceMetricsOverride', { width: 852, height: 718, deviceScaleFactor: 2.4375, mobile: true });

@@ -28,6 +28,7 @@
       font-family: 'Share Tech Mono', monospace;
       user-select: none;
       -webkit-user-select: none;
+      -webkit-touch-callout: none; /* no long-press menu */
       touch-action: manipulation;
       overflow: hidden;
       /* Fill the visible screen. viewport-fit=cover (in the viewport tag) lets the page
@@ -139,7 +140,7 @@
   <main class="relative w-full flex-1 flex items-center justify-center min-h-0 my-1 overflow-hidden px-2 sm:px-4">
     <!-- Game Canvas Container with Fixed Aspect Ratio Scaling -->
     <div id="game-frame" class="relative flex items-center justify-center border-2 border-neutral-800 rounded-lg overflow-hidden bg-[#030305] shadow-2xl">
-      <canvas id="game-canvas" class="block w-full h-full cursor-crosshair"></canvas>
+      <canvas id="game-canvas" class="block w-full h-full"></canvas>
 
       <!-- Shown while a replay plays -->
       <div id="replay-bar" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-2 py-1 sm:px-3 sm:py-1.5 bg-black/70 border border-neutral-700 rounded font-arcade text-[9px] sm:text-xs whitespace-nowrap">
@@ -285,6 +286,7 @@
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">G</span> : Gravity Mode</li>
                 <li id="help-fullscreen-key"><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">F</span> : Fullscreen</li>
               </ul>
+              <p class="mt-1 text-neutral-400 text-[11px] sm:text-xs">Mouse, on the playfield: left click fires, hold the right button to thrust.</p>
             </div>
             <div class="border-t border-neutral-800 pt-2">
               <h4 class="font-bold text-white mb-1">PRO SURVIVAL TIPS</h4>
@@ -1703,6 +1705,19 @@
         if (document.fonts) Promise.all(["10px 'Press Start 2P'", "10px 'Share Tech Mono'"].map((f) => document.fonts.load(f)))
           .catch(() => {}).then(() => this.resize());
         window.addEventListener('resize', () => this.resize());
+        // The layout can also change without a window resize event (entering fullscreen
+        // on some phones, a window in desktop mode, the header or footer reflowing). The
+        // touch buttons' lift is measured, so lay out again whenever the page's or the
+        // play area's size changes, or the buttons can end up over the playfield.
+        // (resize() itself doesn't change these sizes, so this can't loop.)
+        if (window.ResizeObserver) {
+          let pending = 0;
+          const relayout = new ResizeObserver(() => {
+            if (!pending) pending = requestAnimationFrame(() => { pending = 0; this.resize(); });
+          });
+          relayout.observe(document.documentElement);
+          relayout.observe(document.querySelector('main'));
+        }
         this.setupKeyboard();
         this.setupAutoPause();
         this.setupTouchControls();
@@ -1753,6 +1768,8 @@
         document.addEventListener('fullscreenchange', () => {
           this.resize();
           this.updateFullscreenAvailability();
+          // Some phones animate into fullscreen; lay out again once it has settled
+          setTimeout(() => this.resize(), 400);
         });
         this.fullscreenAppQuery = window.matchMedia('(display-mode: fullscreen)');
         this.fullscreenAppQuery.addEventListener('change', () => this.updateFullscreenAvailability());
@@ -2200,14 +2217,33 @@
       }
 
       setupTouchControls() {
-        // Left mouse click on the playfield fires one shot (mouse only, so touch
-        // taps on the playfield don't fire)
-        this.canvas.addEventListener('pointerdown', (e) => {
-          if (e.pointerType !== 'mouse' || e.button !== 0) return;
-          e.preventDefault();
-          this.sound.ensureActive();
-          if (this.state === 'PLAYING' && !this.replay) this.fireBullet();
+        // Mouse on the playfield (mouse only, so touch taps there do nothing): the left
+        // button fires one shot per press and the right button thrusts while held. A
+        // press or release of one button while the other is held arrives as a
+        // pointermove with e.button set, so those are handled too.
+        const onMouse = (e) => {
+          if (e.pointerType !== 'mouse') return;
+          if (e.type === 'pointerdown') {
+            e.preventDefault();
+            this.sound.ensureActive();
+            // Keep getting this mouse's events (the release) if it leaves the playfield
+            try { this.canvas.setPointerCapture(e.pointerId); } catch (err) { /* not a live pointer */ }
+          }
+          if (e.button === 0 && (e.buttons & 1) && this.state === 'PLAYING' && !this.replay) this.fireBullet();
+          if (e.button === 2 && !this.replay) this.keys.thrust = (e.buttons & 2) !== 0;
+        };
+        for (const type of ['pointerdown', 'pointermove', 'pointerup']) this.canvas.addEventListener(type, onMouse);
+        this.canvas.addEventListener('pointercancel', (e) => {
+          if (e.pointerType === 'mouse' && !this.replay) this.keys.thrust = false;
         });
+        // Keep the browser's own mouse and long-press actions off the playfield. A right
+        // click (its menu), a two-finger tap on a touchpad or a long press would otherwise open a
+        // menu or start a selection or drag, and the next clicks would close or end that
+        // instead of firing
+        for (const type of ['contextmenu', 'selectstart', 'dragstart']) {
+          this.canvas.addEventListener(type, (e) => e.preventDefault());
+        }
+        this.canvas.addEventListener('mousedown', (e) => e.preventDefault());
 
         // The ship's buttons do nothing during a replay; Pause still works
         const bindTouch = (id, onDown, onUp, duringReplay = false) => {
@@ -3215,6 +3251,10 @@
       // --- Rendering Loop ---
       render() {
         this.renderCount = (this.renderCount || 0) + 1; // for the diagnostics panel's fps readout
+        // The mouse pointer is hidden over the playfield while you play (a click anywhere
+        // fires), and shown on the other screens and during replays
+        const cursor = this.state === 'PLAYING' && !this.replay ? 'none' : '';
+        if (this.canvas.style.cursor !== cursor) this.canvas.style.cursor = cursor;
         const ctx = this.ctx;
         const theme = THEMES[currentThemeIdx];
 

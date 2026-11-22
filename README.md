@@ -44,6 +44,7 @@ The installed app opens fullscreen and works offline. The offline support only w
 | `W` / `↑` | Thrust |
 | `Space` / `J` | Fire (max 4 shots on screen) |
 | Left click (on the playfield) | Fire |
+| Right button, held (on the playfield) | Thrust |
 | `S` / `↓` / `Shift` | Hyperspace (random teleport; can destroy your ship) |
 | `P` / `Esc` | Pause / resume |
 | `R` | Restart (when paused or after game over) |

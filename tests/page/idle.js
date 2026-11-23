@@ -1,5 +1,6 @@
-// Idle CPU: the frame loop runs only while playing. The start, paused and game over
-// screens are drawn once and then left alone until something visible changes.
+// Frame rates: while playing, every frame. The start and game over screens keep rocks
+// drifting at about 30 fps (MENU_FPS), with one loop however often they're redrawn.
+// A paused game is drawn once and then left alone until something visible changes.
 window.addEventListener('load', () => setTimeout(async () => {
   const g = window.__asteroidsGameInstance, out = [];
   const ok = (n, c, x = '') => out.push(`${c ? 'PASS' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`);
@@ -9,15 +10,17 @@ window.addEventListener('load', () => setTimeout(async () => {
   g.render = () => { renders++; realRender(); };
   const count = async (ms) => { renders = 0; await wait(ms); return renders; };
   try {
-    ok('start screen: no redraws while idle', (await count(800)) === 0, `${renders} in 0.8 s`);
+    const menu = await count(1000);
+    ok('start screen: rocks drift at about 30 fps', menu >= 15 && menu <= 33, `${menu} in 1 s`);
+    const startRocks = g.asteroids.map((a) => a.x + ',' + a.y).join();
+    await wait(200);
+    ok('start screen: the rocks move', g.asteroids.length > 0 && g.asteroids.map((a) => a.x + ',' + a.y).join() !== startRocks);
     const pixel = () => [...g.ctx.getImageData(0, 0, g.canvas.width, g.canvas.height).data].some((v, i) => i % 4 !== 3 && v > 20);
     ok('start screen: the playfield is still drawn', pixel());
 
-    renders = 0; g.cycleTheme(); await wait(200);
-    ok('changing the palette redraws the idle screen', renders >= 1 && renders <= 3, `${renders} redraws`);
-    renders = 0; window.dispatchEvent(new Event('resize')); await wait(200);
-    ok('resizing redraws the idle screen', renders >= 1 && renders <= 3, `${renders} redraws`);
-    ok('then it goes idle again', (await count(500)) === 0, `${renders} in 0.5 s`);
+    g.cycleTheme(); g.cycleTheme(); g.cycleTheme(); window.dispatchEvent(new Event('resize'));
+    const after = await count(1000);
+    ok('redraw requests on the start screen don\'t add a second loop', after >= 15 && after <= 33, `${after} in 1 s`);
 
     g.startGame();
     g.ship.invulnerable = 1e9;
@@ -48,9 +51,17 @@ window.addEventListener('load', () => setTimeout(async () => {
     ok('losing focus again while paused: still paused', g.state === 'PAUSED');
     g.togglePause();
 
-    g.triggerGameOver();
-    await wait(100);
-    ok('game over: no redraws', (await count(500)) === 0, `${renders} in 0.5 s`);
+    // A game that ends during a frame (as it really does) keeps the loop going for the
+    // game over screen's drifting rocks
+    g.lives = 1; g.ship.invulnerable = 0; g.onShipDeath(); g.gameOverTimer = 0.05;
+    g.requestRender();
+    await wait(300);
+    ok('the game ended on its own', g.state === 'GAMEOVER');
+    const over = await count(1000);
+    ok('game over: rocks drift at about 30 fps', over >= 15 && over <= 33, `${over} in 1 s`);
+    g.state = 'PAUSED'; await wait(100);
+    ok('a paused game is not redrawn', (await count(500)) === 0, `${renders} in 0.5 s`);
+    g.state = 'GAMEOVER'; g.requestRender();
   } catch (e) { out.push('ERROR ' + e.stack); }
   g.render = realRender;
   window.__testResults = out;

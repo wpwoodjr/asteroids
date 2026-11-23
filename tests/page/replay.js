@@ -143,8 +143,8 @@ window.addEventListener('load', () => setTimeout(() => {
       const result = playBack(best, 'BEST GAME', 16.7);
       ok('the saved best game replays exactly', result.finished && result.frame === result.frames && result.score === best.score,
         JSON.stringify(result));
-      ok('afterwards the start screen is back, with an empty field', g.state === 'START' && g.score === 0 &&
-        g.asteroids.length === 0 && !document.getElementById('screen-start').classList.contains('hidden'));
+      ok('afterwards the start screen is back, with its drifting rocks', g.state === 'START' && g.score === 0 &&
+        g.asteroids.length === 7 && !document.getElementById('screen-start').classList.contains('hidden'));
 
       // Smooth playback: record 20 s at 60 fps with the usual wobble in frame times, then
       // play it back on screens of different rates and count recorded frames per refresh

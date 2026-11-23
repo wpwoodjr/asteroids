@@ -90,6 +90,12 @@ export default async function ({ send, ev, base, sleep }) {
   const shown = await ev(`new Promise((done) => { window.__asteroidsGameInstance.startGame();
     setTimeout(() => done(getComputedStyle(document.getElementById('touch-controls')).visibility === 'visible'), 100); })`);
   ok('portrait phone: touch buttons come back when the game starts', shown);
+  // A playfield limited by the width uses <main>'s side padding, lining up with the header
+  const edges = await ev(`(() => {
+    const f = document.getElementById('game-frame').getBoundingClientRect(), h = document.querySelector('header').getBoundingClientRect();
+    return { left: f.left - h.left, right: h.right - f.right };
+  })()`);
+  ok('portrait phone: playfield reaches the edges of the header', Math.abs(edges.left) <= 1 && Math.abs(edges.right) <= 1, JSON.stringify(edges));
 
   // The touch buttons follow the playfield when the layout changes without a window
   // resize event (as when entering fullscreen on some phones): here the header grows

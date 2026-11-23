@@ -56,7 +56,11 @@ async function startServer() {
 async function launchBrowser() {
   const port = await freePort();
   const profile = mkdtempSync(path.join(tmpdir(), 'asteroids-test-'));
-  const proc = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', `--user-data-dir=${profile}`,
+  // --mute-audio: the game's sounds still play inside the page (the sound tests examine
+  // them) but never reach the speakers. Without it, tests run on a device with a sound
+  // card play explosions and heartbeats out loud, which sounds like a paused game
+  // making noise.
+  const proc = spawn(CHROME, ['--headless=new', '--mute-audio', '--no-sandbox', '--disable-gpu', `--user-data-dir=${profile}`,
     `--remote-debugging-port=${port}`, 'about:blank'], { stdio: 'ignore' });
   const target = await waitFor(async () => {
     const list = await (await fetch(`http://127.0.0.1:${port}/json`)).json();

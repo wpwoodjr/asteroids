@@ -50,6 +50,9 @@
                  max(0.25rem, calc(env(safe-area-inset-bottom) - 1.5rem)) max(1rem, env(safe-area-inset-left));
       }
     }
+    /* On screens too narrow for the playfield's 4:3 shape, resize() drops <main>'s side
+       padding so the playfield reaches the header's edges and is a little bigger */
+    main.snug { padding-left: 0; padding-right: 0; }
     /* Probe for reading the safe-area insets in the diagnostics panel */
     #safe-area-probe {
       position: fixed; visibility: hidden; pointer-events: none;
@@ -64,6 +67,12 @@
     footer.compact .footer-long { display: none !important; }
     footer.compact .footer-short { display: inline !important; }
     .overlay-fit { transform-origin: center; }
+    /* The start, game over and Hall of Fame screens: light enough to see the rocks
+       drifting behind */
+    .menu-backdrop { background-color: rgba(0, 0, 0, 0.6); }
+    /* The Hall of Fame opened from the start or game over screen hides that screen, so
+       only the rocks show behind it */
+    body:has(#screen-scores:not(.hidden)) :is(#screen-start, #screen-game-over) { visibility: hidden; }
     .initials-input { letter-spacing: 0.4em; padding-left: calc(0.5rem + 0.4em); user-select: text; -webkit-user-select: text; }
     .initials-input:focus { outline: none; box-shadow: 0 0 12px rgba(234, 179, 8, 0.6); }
     /* Two-row touch controls (chosen by resize() when there's room): Hyperspace under
@@ -156,7 +165,7 @@
       </div>
 
       <!-- Start / Menu Overlay Screen -->
-      <div id="screen-start" data-overlay data-grow class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30 transition-opacity duration-200">
+      <div id="screen-start" data-overlay data-grow class="absolute inset-0 menu-backdrop flex flex-col items-center justify-center p-6 text-center z-30 transition-opacity duration-200">
         <div class="overlay-fit w-full flex flex-col items-center">
         <h1 class="font-arcade text-3xl sm:text-5xl md:text-6xl text-white tracking-widest mb-4 vector-glow animate-pulse">ASTEROIDS</h1>
         <p class="font-arcade text-xs sm:text-sm text-neutral-400 mb-6 tracking-wide">ARCADE VECTOR SHOOTER</p>
@@ -227,7 +236,7 @@
       </div>
 
       <!-- Game Over Screen -->
-      <div id="screen-game-over" data-overlay data-grow class="hidden absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30">
+      <div id="screen-game-over" data-overlay data-grow class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center p-6 text-center z-30">
         <div class="overlay-fit w-full flex flex-col items-center">
         <h2 class="font-arcade text-3xl sm:text-5xl text-red-500 tracking-widest mb-3 vector-glow">GAME OVER</h2>
         <div id="new-high-score-banner" class="hidden mb-4 px-3 py-1 bg-yellow-500/20 border border-yellow-500 text-yellow-300 font-arcade text-xs rounded animate-bounce">
@@ -325,7 +334,7 @@
       </div>
 
       <!-- High Scores / Hall of Fame Modal Screen -->
-      <div id="screen-scores" data-overlay data-grow class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-40">
+      <div id="screen-scores" data-overlay data-grow class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center p-6 z-40">
         <div class="overlay-fit max-w-md w-full bg-neutral-950 border border-neutral-700 rounded-lg p-5 text-neutral-300 text-xs sm:text-sm">
           <div class="flex justify-between items-center mb-4 border-b border-neutral-800 pb-2">
             <h3 class="font-arcade text-sm sm:text-base text-yellow-400 vector-glow flex items-center gap-2">
@@ -907,6 +916,8 @@
     // the playfield, as in the arcade, before the game over screen: long enough for the
     // explosion to play out and shots still in flight to land
     const GAME_OVER_DELAY = 3;
+    const MENU_GROW_BELOW = 0.8; // a menu screen grows past the playfield rather than shrink below this
+    const MENU_FPS = 30; // frame rate behind the start and game over screens
 
     const BULLET_MAX_AXIS = 111 * ARCADE_VEL_UNIT;
     const BULLET_LIFE = 72 / ARCADE_FPS;
@@ -1740,6 +1751,7 @@
         this.sound.isIdle = () => this.state !== 'PLAYING';
         this.initDOM();
         this.applySavedSettings();
+        this.makeMenuRocks();
         this.setupOverlayFit();
         this.resize();
         // The embedded fonts load when first used, which changes text widths; load them
@@ -1779,8 +1791,9 @@
         });
       }
 
-      // Redraw once when something visible changes while the game isn't running
-      // (start, paused, game over), so the idle screen costs no CPU between changes
+      // Redraw once when something visible changes while the game isn't running. A
+      // paused game then costs no CPU until the next change; on the start and game over
+      // screens the frame loop keeps going for the drifting rocks (see loop())
       requestRender() {
         if (!this.rafId && this.state !== 'PLAYING') this.lastTime = performance.now();
         this.scheduleFrame();
@@ -1885,7 +1898,9 @@
         };
         this.setOverlayArea(overlay, null); // inside the playfield
         let s = fit();
-        if (s < 0.999 && 'grow' in overlay.dataset) {
+        // Shrinking a little keeps it on the playfield; it grows only when it would have
+        // to shrink a lot (MENU_GROW_BELOW), as on a narrow phone in portrait
+        if (s < MENU_GROW_BELOW && 'grow' in overlay.dataset) {
           const area = this.menuArea();
           const frame = document.getElementById('game-frame').getBoundingClientRect();
           if (area.height > frame.height + 1 || area.width > frame.width + 1) {
@@ -1915,14 +1930,14 @@
       setOverlayArea(overlay, area) {
         const st = overlay.style;
         if (!area) {
-          for (const k of ['position', 'left', 'top', 'width', 'height', 'border', 'borderRadius', 'backgroundColor']) st[k] = '';
+          for (const k of ['position', 'left', 'top', 'width', 'height', 'border', 'borderRadius']) st[k] = '';
           overlay.classList.remove('menu-expanded');
           return;
         }
         Object.assign(st, { position: 'fixed', left: `${area.left}px`, top: `${area.top}px`,
-          width: `${area.width}px`, height: `${area.height}px`, border: '2px solid #262626', borderRadius: '0.5rem',
-          // Nearly solid, so the touch buttons and the playfield's edge don't show through
-          backgroundColor: 'rgba(3, 3, 5, 0.96)' });
+          width: `${area.width}px`, height: `${area.height}px`, border: '2px solid #262626', borderRadius: '0.5rem' });
+        // (Its usual see-through background lets the drifting rocks show; the touch
+        // buttons underneath are hidden while it's enlarged, see the CSS)
         overlay.classList.add('menu-expanded');
       }
 
@@ -1970,11 +1985,21 @@
           return { w, h, ok: rect.width > 0 && rect.height > 0 };
         };
 
+        // A playfield limited by the screen's width (a narrow screen) uses <main>'s side
+        // padding too, so it lines up with the header and is a little bigger
+        // (decided with the touch buttons on one row, which leaves the playfield the most height)
+        const touch = document.getElementById('touch-controls');
+        touch.style.transform = '';
+        touch.classList.remove('two-row');
+        main.classList.remove('snug');
+        const roomy = fitFrame();
+        const mainBox = main.getBoundingClientRect(), mainStyle = getComputedStyle(main);
+        const tall = mainBox.height - parseFloat(mainStyle.paddingTop) - parseFloat(mainStyle.paddingBottom);
+        if (roomy.ok && roomy.h < tall - 1) main.classList.add('snug');
+
         // Touch buttons: Hyperspace and Pause go on a second row (under the rotate and
         // thrust/fire buttons) only if that doesn't make the playfield smaller. The
         // playfield may move up to make room.
-        const touch = document.getElementById('touch-controls');
-        touch.style.transform = '';
         touch.classList.add('two-row');
         let fit = fitFrame();
         const twoRowWidth = fit.w;
@@ -3798,6 +3823,13 @@
       }
 
       loop(timestamp) {
+        // The start and game over screens (and Help or Scores opened from them) show
+        // rocks drifting behind them, redrawn at about 30 fps to go easy on batteries
+        const menu = this.isMenuScreen();
+        if (menu && timestamp - this.lastTime < 1000 / MENU_FPS - 2) {
+          this.scheduleFrame();
+          return;
+        }
         const dt = Math.min(Math.max(0, (timestamp - this.lastTime) / 1000), 0.1);
         this.lastTime = timestamp;
 
@@ -3820,11 +3852,47 @@
             this.recording.frames += String.fromCharCode(32 + units * 8 + held);
           }
           this.stepFrame(units);
+        } else if (menu) {
+          this.menuDrift(dt);
         }
         this.render();
 
-        // Keep running only while playing; otherwise stop until requestRender()
-        if (this.state === 'PLAYING') this.scheduleFrame();
+        // Keep running while playing or on a menu screen; otherwise (paused) stop until
+        // requestRender(). (Checked again here: a game can end during this frame.)
+        if (this.state === 'PLAYING' || this.isMenuScreen()) this.scheduleFrame();
+      }
+
+      // The start or game over screen is showing (not a paused game or a replay)
+      isMenuScreen() {
+        return (this.state === 'START' || this.state === 'GAMEOVER') && !this.replay;
+      }
+
+      // Behind the menu screens, rocks, sparks and any saucer drift in straight lines and
+      // wrap around. It's only a backdrop: no game rules, and no game random numbers.
+      menuDrift(dt) {
+        for (const a of this.asteroids) {
+          a.x += a.vx * dt; a.y += a.vy * dt; a.rot += a.rotSpeed * dt;
+          this.wrapPosition(a, a.radius);
+        }
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const p = this.particles[i];
+          p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.rotSpeed * dt; p.life -= dt;
+          if (p.life <= 0) this.particles.splice(i, 1);
+        }
+        this.floatingTexts.length = 0;
+        if (this.ufo) {
+          this.ufo.x += this.ufo.vx * dt; this.ufo.y += this.ufo.vy * dt;
+          this.wrapPosition(this.ufo);
+        }
+      }
+
+      // Rocks for the start screen's backdrop: a few of each size, drifting at game speeds.
+      // (This uses the game's random numbers, but they're reseeded when a game starts.)
+      makeMenuRocks() {
+        this.asteroids = [];
+        for (const size of ['large', 'large', 'large', 'medium', 'medium', 'small', 'small']) {
+          this.asteroids.push(this.createAsteroid(this.random() * this.width, this.random() * this.height, size));
+        }
       }
 
       // Run one frame's game logic. Simulate in steps of at most about one arcade frame:

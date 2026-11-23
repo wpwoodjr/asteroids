@@ -846,10 +846,7 @@
     });
     const THEMES = [
       palette('Classic', '#ffffff', '#ffffff', '#ffffff'),       // all white, like the arcade
-      palette('Arcade Color', '#cbd5e1', '#22d3ee', '#f87171'),  // gray rocks, cyan ship, red saucer
-      palette('Green Screen', '#3fa864', '#8dffa8', '#fbbf24'),  // dim green, bright green, amber
-      palette('Amber', '#c28a2c', '#ffd166', '#38bdf8'),         // dim amber, bright amber, cyan
-      palette('Deep Space', '#3b82f6', '#22d3ee', '#fbbf24'),    // blue rocks, cyan ship, amber saucer
+      palette('Neon', '#cbd5e1', '#22d3ee', '#f87171'),          // gray rocks, cyan ship, red saucer
       { ...palette('Nebula', '#a8a29e', '#e2e8f0', '#f59e0b'), realistic: true } // shaded, textured objects (RealisticArt)
     ];
     let currentThemeIdx = 0;
@@ -1957,9 +1954,9 @@
       // Restore saved display/audio/gravity settings without sounds or announcements
       applySavedSettings() {
         const saved = loadSettings();
-        if (Number.isInteger(saved.theme) && saved.theme >= 0 && saved.theme < THEMES.length) {
-          this.setTheme(saved.theme);
-        }
+        // Saved by name; an unknown one (or an older version's number) gets Classic
+        const themeIdx = THEMES.findIndex((t) => t.name === saved.theme);
+        this.setTheme(themeIdx >= 0 ? themeIdx : 0);
         if (typeof saved.muted === 'boolean') this.setAudioMuted(saved.muted);
         if (Number.isInteger(saved.gravity) && saved.gravity >= 0 && saved.gravity < GRAVITY_LEVELS.length) {
           this.setGravityLevel(saved.gravity, false);
@@ -1968,7 +1965,7 @@
 
       persistSettings() {
         saveSettings({
-          theme: currentThemeIdx,
+          theme: THEMES[currentThemeIdx].name,
           muted: this.sound.muted,
           // A replay plays at the gravity it was recorded with; keep the player's own
           gravity: this.replay ? this.replay.gravity : this.gravityLevel

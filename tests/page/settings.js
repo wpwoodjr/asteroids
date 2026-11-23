@@ -7,13 +7,21 @@ window.addEventListener('load', () => setTimeout(() => {
   try {
     if (phase === 'set') {
       localStorage.removeItem('asteroids_settings');
-      g.cycleTheme(); g.cycleTheme();       // Green Screen
+      g.cycleTheme(); g.cycleTheme();       // Nebula
       g.toggleAudio();                      // muted
       g.toggleGravity(); g.toggleGravity(); // MED
       const saved = JSON.parse(localStorage.getItem('asteroids_settings'));
-      ok('settings saved', saved && saved.theme === 2 && saved.muted === true && saved.gravity === 2);
+      ok('settings saved', saved && saved.theme === 'Nebula' && saved.muted === true && saved.gravity === 2);
     } else {
-      ok('palette restored (Green Screen)', document.getElementById('theme-name').textContent === 'Green Screen');
+      ok('palette restored (Nebula)', document.getElementById('theme-name').textContent === 'Nebula');
+      const themeName = () => document.getElementById('theme-name').textContent;
+      const fromSaved = (theme) => {
+        localStorage.setItem('asteroids_settings', JSON.stringify({ ...loadSettings(), theme }));
+        g.applySavedSettings();
+        return themeName();
+      };
+      ok('an older version\'s saved palette number gets Classic', fromSaved(1) === 'Classic');
+      ok('unknown saved palette falls back to Classic', fromSaved('Plaid') === 'Classic');
       ok('CRT overlay removed', !document.getElementById('overlay-scanlines') && !document.getElementById('btn-scanlines'));
       ok('mute restored', g.sound.muted && document.getElementById('audio-icon').textContent === '🔇');
       ok('gravity restored (MED)', g.gravityLevel === 2 && g.gravityMode && g.planet.mass === 980000

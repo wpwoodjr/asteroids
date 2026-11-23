@@ -12,18 +12,7 @@ window.addEventListener('load', () => setTimeout(() => {
   };
   const contrast = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
   try {
-    ok('6 palettes', THEMES.length === 6, THEMES.map((t) => t.name).join(', '));
-    // Colors within a palette must be clearly different hues (not just shades), except Classic
-    const hue = (hex) => {
-      const [r, gg, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-      const max = Math.max(r, gg, b), min = Math.min(r, gg, b), d = max - min;
-      if (d === 0) return null;
-      const h = max === r ? ((gg - b) / d) % 6 : max === gg ? (b - r) / d + 2 : (r - gg) / d + 4;
-      return (h * 60 + 360) % 360;
-    };
-    const hueGap = (a, b) => { const x = hue(a), y = hue(b); return x === null || y === null ? 360 : Math.min(Math.abs(x - y), 360 - Math.abs(x - y)); };
-    const deep = THEMES.find((t) => t.name === 'Deep Space');
-    ok('Deep Space: blue rocks vs cyan ship are distinct hues', hueGap(deep.rock, deep.ship) >= 20, `${hueGap(deep.rock, deep.ship).toFixed(0)}° apart`);
+    ok('3 palettes', THEMES.length === 3, THEMES.map((t) => t.name).join(', '));
     for (const t of THEMES) {
       const worst = Math.min(...['rock', 'ship', 'saucer'].map((k) => contrast(t[k], '#030305')));
       ok(`${t.name}: all colors readable on black`, worst >= 4.5, `lowest contrast ${worst.toFixed(1)}:1`);
@@ -37,7 +26,7 @@ window.addEventListener('load', () => setTimeout(() => {
     g.setTheme(1);
     const dots = [...document.querySelectorAll('#theme-indicator [data-part]')].map((d) => d.style.backgroundColor);
     ok('theme button shows the palette name and its 3 colors',
-       document.getElementById('theme-name').textContent === 'Arcade Color' && dots.length === 3 && new Set(dots).size === 3, dots.join(' | '));
+       document.getElementById('theme-name').textContent === 'Neon' && dots.length === 3 && new Set(dots).size === 3, dots.join(' | '));
 
     // Drawing: record the stroke/fill color used for each kind of object
     g.startGame(); g.ufoSpawnTimer = 1e9;

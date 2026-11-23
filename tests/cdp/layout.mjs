@@ -70,6 +70,27 @@ export default async function ({ send, ev, base, sleep }) {
     ok(`${label}: playfield not smaller than with one row`, t.w >= t.oneRowW - 1, `${Math.round(t.w)} vs ${Math.round(t.oneRowW)} px wide`);
   }
 
+  // Narrow phone in portrait: the start screen doesn't fit the playfield, so it grows to
+  // cover the area between the header and footer (hiding the touch buttons), and fits
+  // there without scrolling or shrinking. Starting a game puts the buttons back.
+  await send('Emulation.setDeviceMetricsOverride', { width: 411, height: 790, deviceScaleFactor: 2.625, mobile: true });
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  const p = await ev(`(() => {
+    const o = document.getElementById('screen-start'), c = o.querySelector('.overlay-fit');
+    const t = getComputedStyle(c).transform, frame = document.getElementById('game-frame').getBoundingClientRect();
+    const r = o.getBoundingClientRect(), cr = c.getBoundingClientRect();
+    return { grown: r.height > frame.height + 50, scale: t === 'none' ? 1 : new DOMMatrix(t).a, scrolls: o.style.overflowY === 'auto',
+      fits: cr.top >= r.top - 0.5 && cr.bottom <= r.bottom + 0.5,
+      touchHidden: getComputedStyle(document.getElementById('touch-controls')).visibility === 'hidden' };
+  })()`);
+  ok('portrait phone: start screen grows past the playfield', p.grown);
+  ok('portrait phone: start screen fits without scrolling or shrinking', p.fits && !p.scrolls && p.scale > 0.95, `scale ${p.scale.toFixed(2)}`);
+  ok('portrait phone: touch buttons hidden under it', p.touchHidden);
+  const shown = await ev(`new Promise((done) => { window.__asteroidsGameInstance.startGame();
+    setTimeout(() => done(getComputedStyle(document.getElementById('touch-controls')).visibility === 'visible'), 100); })`);
+  ok('portrait phone: touch buttons come back when the game starts', shown);
+
   // The touch buttons follow the playfield when the layout changes without a window
   // resize event (as when entering fullscreen on some phones): here the header grows
   // taller, then back

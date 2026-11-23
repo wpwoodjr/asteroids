@@ -32,7 +32,7 @@ export default async function ({ send, ev, base, stopServer, sleep }) {
   await send('Page.navigate', { url });
   await sleep(3000);
   const offline = await ev(`(async () => ({ title: document.title, game: !!window.__asteroidsGameInstance,
-    tw: getComputedStyle(document.getElementById('screen-start')).position,
+    tw: getComputedStyle(document.getElementById('screen-pause')).position, // never enlarged (see fitOverlay)
     fonts: await Promise.all(["10px 'Press Start 2P'", "10px 'Share Tech Mono'"].map((f) => document.fonts.load(f)))
       .then((faces) => faces.every((list) => list.length > 0 && list.every((f) => f.status === 'loaded'))) }))()`);
   ok('loads offline', offline?.game && offline.title.startsWith('Asteroids'), JSON.stringify(offline));

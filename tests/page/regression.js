@@ -90,8 +90,12 @@ window.addEventListener('load', () => setTimeout(() => {
     g.sound.startThrust = realStart; g.sound.stopThrust = realStop;
 
     // Losing the last ship: the game carries on with GAME OVER showing for a few seconds
-    // (rocks drift, shots in flight still score, no extra ship), then the game over screen
-    g.startGame(); g.ufo = null; g.lives = 1;
+    // (rocks drift, shots in flight still score, no extra ship), then the game over screen.
+    // Gravity off (a rock falling into the planet costs points) and no saucers, so
+    // nothing else changes the score.
+    const gravityAtStart = g.gravityLevel;
+    g.setGravityLevel(0, false);
+    g.startGame(); g.ufo = null; g.ufoSpawnTimer = 1e9; g.lives = 1;
     localStorage.removeItem('asteroids_leaderboard');
     const rock = g.asteroids[0], rockX = rock.x;
     g.score = 9990; g.lastExtraLifeScore = 0;
@@ -109,6 +113,7 @@ window.addEventListener('load', () => setTimeout(() => {
        !document.getElementById('screen-game-over').classList.contains('hidden'));
     ok('final score includes shots that landed after the last ship', JSON.parse(localStorage.getItem('asteroids_leaderboard'))
       .some((e) => e.name === 'YOU' && e.score === 10010));
+    g.setGravityLevel(gravityAtStart, false);
     localStorage.removeItem('asteroids_leaderboard'); localStorage.removeItem('asteroids_high_score');
     g.highScore = 0;
 

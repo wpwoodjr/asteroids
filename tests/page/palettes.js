@@ -23,6 +23,7 @@ window.addEventListener('load', () => setTimeout(() => {
     ok('Classic is all white', ['rock', 'ship', 'saucer'].every((k) => THEMES[0][k] === '#ffffff'));
 
     // Cycling updates the theme button's name and three dots
+    g.paletteChosen = true; // a picked palette stays put when a game starts
     g.setTheme(1);
     const dots = [...document.querySelectorAll('#theme-indicator [data-part]')].map((d) => d.style.backgroundColor);
     ok('theme button shows the palette name and its 3 colors',
@@ -84,6 +85,26 @@ window.addEventListener('load', () => setTimeout(() => {
     g.setGravityLevel(gravity, false);
     g.removeUfo();
     g.setTheme(0);
+
+    // Until the player picks a palette, it changes with the waves: Classic, then Neon at
+    // wave 2 and Nebula from wave 3, with a hint under the banner at each switch
+    const name = () => document.getElementById('theme-name').textContent;
+    g.paletteChosen = false; g.setTheme(2);
+    g.startGame(); g.ufoSpawnTimer = 1e9;
+    ok('auto: each game starts in Classic, with no hint', name() === 'Classic' && g.paletteHint === '', name());
+    g.createWave(2);
+    ok('auto: Neon at wave 2, with a hint', name() === 'Neon' && /^NEON PALETTE - (PRESS C|TAP THE PALETTE BUTTON) TO CHANGE$/.test(g.paletteHint), g.paletteHint);
+    g.render();
+    g.createWave(3);
+    ok('auto: Nebula at wave 3, with a hint', name() === 'Nebula' && g.paletteHint.startsWith('NEBULA PALETTE'), g.paletteHint);
+    g.createWave(4);
+    ok('auto: stays Nebula after that, with no hint', name() === 'Nebula' && g.paletteHint === '');
+    g.createWave(2); g.cycleTheme();
+    ok('picking a palette clears the hint', g.paletteChosen && g.paletteHint === '');
+    const picked = name();
+    g.startGame(); g.createWave(2); g.createWave(3);
+    ok('picked: the palette no longer changes with the waves', name() === picked && g.paletteHint === '', name());
+    g.paletteChosen = false; g.setTheme(0);
   } catch (e) { out.push('ERROR ' + e.stack); }
   window.__testResults = out;
   window.__testDone = true;

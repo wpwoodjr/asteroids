@@ -71,6 +71,9 @@
     #touch-controls.two-row #btn-touch-pause { grid-column: 1 / span 2; grid-row: 2; }
     #touch-controls.two-row #btn-touch-thrust { grid-column: 1; grid-row: 1; }
     #touch-controls.two-row #btn-touch-fire { grid-column: 2; grid-row: 1; }
+    /* A menu screen enlarged past the playfield (see fitOverlay()) covers the touch
+       buttons, which do nothing there anyway */
+    body:has(.menu-expanded:not(.hidden)) #touch-controls { visibility: hidden; }
     /* During a replay the ship's buttons do nothing (Pause still works) */
     body.replaying #touch-controls button:not(#btn-touch-pause) { opacity: 0.35; }
     .font-arcade {
@@ -151,7 +154,7 @@
       </div>
 
       <!-- Start / Menu Overlay Screen -->
-      <div id="screen-start" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30 transition-opacity duration-200">
+      <div id="screen-start" data-overlay data-grow class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30 transition-opacity duration-200">
         <div class="overlay-fit w-full flex flex-col items-center">
         <h1 class="font-arcade text-3xl sm:text-5xl md:text-6xl text-white tracking-widest mb-4 vector-glow animate-pulse">ASTEROIDS</h1>
         <p class="font-arcade text-xs sm:text-sm text-neutral-400 mb-6 tracking-wide">ARCADE VECTOR SHOOTER</p>
@@ -207,7 +210,7 @@
       </div>
 
       <!-- Pause Overlay Screen -->
-      <div id="screen-pause" class="hidden absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30">
+      <div id="screen-pause" data-overlay class="hidden absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30">
         <div class="overlay-fit w-full flex flex-col items-center">
         <h2 class="font-arcade text-3xl sm:text-4xl text-white tracking-widest mb-6 vector-glow">GAME PAUSED</h2>
         <div class="flex flex-col gap-3 w-48">
@@ -222,7 +225,7 @@
       </div>
 
       <!-- Game Over Screen -->
-      <div id="screen-game-over" class="hidden absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30">
+      <div id="screen-game-over" data-overlay data-grow class="hidden absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30">
         <div class="overlay-fit w-full flex flex-col items-center">
         <h2 class="font-arcade text-3xl sm:text-5xl text-red-500 tracking-widest mb-3 vector-glow">GAME OVER</h2>
         <div id="new-high-score-banner" class="hidden mb-4 px-3 py-1 bg-yellow-500/20 border border-yellow-500 text-yellow-300 font-arcade text-xs rounded animate-bounce">
@@ -265,7 +268,7 @@
       </div>
 
       <!-- Help / Instructions Modal Screen -->
-      <div id="screen-help" class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-40">
+      <div id="screen-help" data-overlay data-grow class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-40">
         <div class="overlay-fit max-w-lg w-full bg-neutral-950 border border-neutral-700 rounded-lg p-5 text-neutral-300 text-xs sm:text-sm">
           <div class="flex justify-between items-center mb-4 border-b border-neutral-800 pb-2">
             <h3 class="font-arcade text-sm sm:text-base text-white vector-glow">HOW TO PLAY</h3>
@@ -309,7 +312,7 @@
       </div>
 
       <!-- High Scores / Hall of Fame Modal Screen -->
-      <div id="screen-scores" class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-40">
+      <div id="screen-scores" data-overlay data-grow class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-40">
         <div class="overlay-fit max-w-md w-full bg-neutral-950 border border-neutral-700 rounded-lg p-5 text-neutral-300 text-xs sm:text-sm">
           <div class="flex justify-between items-center mb-4 border-b border-neutral-800 pb-2">
             <h3 class="font-arcade text-sm sm:text-base text-yellow-400 vector-glow flex items-center gap-2">
@@ -850,6 +853,7 @@
       { ...palette('Nebula', '#a8a29e', '#e2e8f0', '#f59e0b'), realistic: true } // shaded, textured objects (RealisticArt)
     ];
     let currentThemeIdx = 0;
+    const AUTO_PALETTES = ['Classic', 'Neon', 'Nebula']; // waves 1, 2, 3+ until the player picks one
 
     // The arcade original runs one game frame every 4 timer interrupts: a 12.096 MHz
     // crystal / 4096 / 12 = 246.1 Hz, so 61.52 frames per second (MAME's asteroid.cpp
@@ -1672,6 +1676,8 @@
         this.nextWaveTimer = null;
         this.waveTransitionTimer = 0;
         this.waveTransitionText = '';
+        this.paletteChosen = false; // see applySavedSettings()
+        this.paletteHint = '';
 
         // Input state
         this.keys = {
@@ -1825,14 +1831,29 @@
       }
 
       // Shrink an overlay's content (start, pause, game over, help, scores) to fit the
-      // playfield instead of letting it be cut off
+      // playfield instead of letting it be cut off. If it would have to shrink, a menu
+      // screen (data-grow) may first grow past the playfield to cover the whole area between the
+      // header and footer (the touch buttons do nothing on these screens): on a narrow
+      // phone in portrait that's far taller than the playfield.
       fitOverlay(overlay) {
         const content = overlay.querySelector('.overlay-fit');
         if (!content || overlay.classList.contains('hidden')) return;
-        const style = getComputedStyle(overlay);
-        const availH = overlay.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-        const availW = overlay.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-        const s = Math.min(1, availH / content.offsetHeight, availW / content.offsetWidth);
+        const fit = () => {
+          const style = getComputedStyle(overlay);
+          const availH = overlay.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+          const availW = overlay.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+          return Math.min(1, availH / content.offsetHeight, availW / content.offsetWidth);
+        };
+        this.setOverlayArea(overlay, null); // inside the playfield
+        let s = fit();
+        if (s < 0.999 && 'grow' in overlay.dataset) {
+          const area = this.menuArea();
+          const frame = document.getElementById('game-frame').getBoundingClientRect();
+          if (area.height > frame.height + 1 || area.width > frame.width + 1) {
+            this.setOverlayArea(overlay, area);
+            s = fit();
+          }
+        }
         // Shrinking below ~55% makes text unreadable; scroll the overlay instead
         const scroll = s < 0.55;
         content.style.transform = !scroll && s < 0.999 ? `scale(${s})` : '';
@@ -1840,9 +1861,40 @@
         overlay.style.justifyContent = scroll ? 'flex-start' : '';
       }
 
+      // The area a menu screen may grow to: between the header and the footer, across
+      // the play area
+      menuArea() {
+        const header = document.querySelector('header').getBoundingClientRect();
+        const footer = document.querySelector('footer').getBoundingClientRect();
+        const main = document.querySelector('main'), m = main.getBoundingClientRect(), ms = getComputedStyle(main);
+        const left = m.left + parseFloat(ms.paddingLeft), right = m.right - parseFloat(ms.paddingRight);
+        const top = header.bottom + 4, bottom = footer.top - 4;
+        return { left, top, width: right - left, height: bottom - top };
+      }
+
+      // Place an overlay over the given screen area, or back over the playfield (null)
+      setOverlayArea(overlay, area) {
+        const st = overlay.style;
+        if (!area) {
+          for (const k of ['position', 'left', 'top', 'width', 'height', 'border', 'borderRadius', 'backgroundColor']) st[k] = '';
+          overlay.classList.remove('menu-expanded');
+          return;
+        }
+        Object.assign(st, { position: 'fixed', left: `${area.left}px`, top: `${area.top}px`,
+          width: `${area.width}px`, height: `${area.height}px`, border: '2px solid #262626', borderRadius: '0.5rem',
+          // Nearly solid, so the touch buttons and the playfield's edge don't show through
+          backgroundColor: 'rgba(3, 3, 5, 0.96)' });
+        overlay.classList.add('menu-expanded');
+      }
+
+      // The screens shown over the playfield, marked data-overlay in the page; those that
+      // may grow past it when they don't fit (the menus, not Pause) are marked data-grow
+      overlays() {
+        return [...document.querySelectorAll('[data-overlay]')];
+      }
+
       setupOverlayFit() {
-        const overlays = ['screen-start', 'screen-pause', 'screen-game-over', 'screen-help', 'screen-scores']
-          .map((id) => document.getElementById(id));
+        const overlays = this.overlays();
         // Refit when an overlay is shown or resized, or its content changes size
         const observer = new ResizeObserver((entries) => {
           for (const entry of entries) {
@@ -1917,6 +1969,9 @@
         const cssScale = frameWidth / this.width;
         this.hudScale = Math.min(2.2, Math.max(1, 12 / (18 * cssScale)));
 
+        // Menu screens may cover more than the playfield, so fit them again too
+        for (const o of this.overlays()) this.fitOverlay(o);
+
         // Resizing the canvas clears it, so draw it again
         this.requestRender();
       }
@@ -1954,8 +2009,10 @@
       // Restore saved display/audio/gravity settings without sounds or announcements
       applySavedSettings() {
         const saved = loadSettings();
-        // Saved by name; an unknown one (or an older version's number) gets Classic
-        const themeIdx = THEMES.findIndex((t) => t.name === saved.theme);
+        // The palette is saved (by name) only once the player has picked one. Until then
+        // it changes by itself as the waves go by (see autoPalette()).
+        const themeIdx = THEMES.findIndex((t) => t.name === saved.palette);
+        this.paletteChosen = themeIdx >= 0;
         this.setTheme(themeIdx >= 0 ? themeIdx : 0);
         if (typeof saved.muted === 'boolean') this.setAudioMuted(saved.muted);
         if (Number.isInteger(saved.gravity) && saved.gravity >= 0 && saved.gravity < GRAVITY_LEVELS.length) {
@@ -1965,16 +2022,37 @@
 
       persistSettings() {
         saveSettings({
-          theme: THEMES[currentThemeIdx].name,
+          palette: this.paletteChosen ? THEMES[currentThemeIdx].name : undefined,
           muted: this.sound.muted,
           // A replay plays at the gravity it was recorded with; keep the player's own
           gravity: this.replay ? this.replay.gravity : this.gravityLevel
         });
       }
 
+      // The player picks the next palette (C key or the palette button): from now on
+      // it's theirs, and it no longer changes with the waves
       cycleTheme() {
+        this.paletteChosen = true;
+        this.paletteHint = '';
         this.setTheme((currentThemeIdx + 1) % THEMES.length);
         this.persistSettings();
+      }
+
+      // Until the player picks a palette, each game starts in Classic, switches to Neon
+      // at wave 2 and to Nebula at wave 3, with a hint under the wave banner saying how
+      // to choose one. Replays do the same.
+      autoPalette(waveNum) {
+        this.paletteHint = '';
+        if (this.paletteChosen) return;
+        const name = AUTO_PALETTES[Math.min(waveNum, AUTO_PALETTES.length) - 1];
+        const idx = THEMES.findIndex((t) => t.name === name);
+        if (idx < 0 || idx === currentThemeIdx) return;
+        this.setTheme(idx);
+        if (waveNum > 1) {
+          // Touch screens without a mouse probably have no keyboard either
+          const touchOnly = window.matchMedia && matchMedia('(any-hover: none)').matches;
+          this.paletteHint = `${name.toUpperCase()} PALETTE - ${touchOnly ? 'TAP THE PALETTE BUTTON' : 'PRESS C'} TO CHANGE`;
+        }
       }
 
       setTheme(idx) {
@@ -2406,10 +2484,10 @@
         document.getElementById('screen-scores').classList.add('hidden');
         // Everything the replay will overwrite, to put back afterwards
         const keep = ['score', 'lives', 'wave', 'ship', 'asteroids', 'bullets', 'ufoBullets', 'ufo',
-          'particles', 'floatingTexts', 'gameOverTimer', 'waveTransitionTimer', 'waveTransitionText'];
+          'particles', 'floatingTexts', 'gameOverTimer', 'waveTransitionTimer', 'waveTransitionText', 'paletteHint'];
         this.replay = {
           rec, label, frame: 0, event: 0, clock: 0, speed: 1,
-          from: this.state, gravity: this.gravityLevel,
+          from: this.state, gravity: this.gravityLevel, theme: currentThemeIdx,
           saved: Object.fromEntries(keep.map((k) => [k, this[k]]))
         };
         this.setGravityLevel(rec.gravity, false);
@@ -2516,6 +2594,7 @@
         this.sound.suspendWhenIdle();
         Object.assign(this, r.saved);
         this.setGravityLevel(r.gravity, false);
+        this.setTheme(this.paletteChosen ? currentThemeIdx : r.theme); // back to before the replay
         document.getElementById('replay-bar').classList.add('hidden');
         document.body.classList.remove('replaying');
         document.getElementById('screen-pause').classList.add('hidden');
@@ -2623,6 +2702,7 @@
         this.heartbeatGap = 48;
         this.waveTransitionText = `WAVE ${waveNum}`;
         this.waveTransitionTimer = 2.0;
+        this.autoPalette(waveNum);
       }
 
       // Velocity works like the arcade original: each axis gets a random nudge of
@@ -3324,7 +3404,18 @@
           ctx.textAlign = 'center';
           ctx.fillStyle = theme.primary;
           ctx.shadowColor = theme.glow;
-          ctx.fillText(banner, this.width / 2, this.height / 2 - 40);
+          // With a palette hint, the banner moves up so the hint fits between it and the
+          // ship (which starts each wave in the middle)
+          const hint = banner === this.waveTransitionText && this.paletteHint;
+          ctx.fillText(banner, this.width / 2, this.height / 2 - (hint ? 66 : 40));
+          if (hint) {
+            // Smaller and dimmer, shrunk if needed to fit the playfield
+            ctx.font = "11px 'Press Start 2P', monospace";
+            const w = ctx.measureText(this.paletteHint).width;
+            if (w > this.width - 40) ctx.font = `${Math.floor(11 * (this.width - 40) / w)}px 'Press Start 2P', monospace`;
+            ctx.globalAlpha = 0.7;
+            ctx.fillText(this.paletteHint, this.width / 2, this.height / 2 - 34);
+          }
           ctx.restore();
         }
 

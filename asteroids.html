@@ -64,6 +64,8 @@
     footer.compact .footer-long { display: none !important; }
     footer.compact .footer-short { display: inline !important; }
     .overlay-fit { transform-origin: center; }
+    .initials-input { letter-spacing: 0.4em; padding-left: calc(0.5rem + 0.4em); user-select: text; -webkit-user-select: text; }
+    .initials-input:focus { outline: none; box-shadow: 0 0 12px rgba(234, 179, 8, 0.6); }
     /* Two-row touch controls (chosen by resize() when there's room): Hyperspace under
        the rotate buttons, Pause under Thrust and Fire */
     #touch-controls.two-row > div { display: grid; grid-template-columns: auto auto; justify-items: center; }
@@ -246,6 +248,17 @@
               <span id="game-over-high" class="text-yellow-400 font-bold ml-1">00</span>
             </div>
           </div>
+        </div>
+
+        <!-- Shown when the score makes the Hall of Fame (see askInitials) -->
+        <div id="initials-entry" class="hidden mb-5 flex flex-col items-center">
+          <label for="initials-input" class="font-arcade text-[10px] sm:text-xs text-yellow-300 mb-3">TOP 10! ENTER YOUR INITIALS</label>
+          <div class="flex items-center gap-2">
+            <input id="initials-input" type="text" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done"
+              class="initials-input font-arcade text-2xl text-center text-white bg-neutral-950 border-2 border-yellow-500 rounded px-2 py-2 w-48">
+            <button id="btn-initials-ok" class="font-arcade px-3 py-3 border border-yellow-500/60 text-yellow-300 text-xs rounded hover:border-yellow-400 hover:text-yellow-200 transition">OK</button>
+          </div>
+          <div class="text-neutral-500 text-[10px] mt-1">ENTER TO SAVE</div>
         </div>
 
         <div class="flex items-center gap-3">
@@ -919,15 +932,39 @@
       { name: "VEC", score: 9850, wave: 6 },
       { name: "PIL", score: 6240, wave: 5 },
       { name: "CMD", score: 3890, wave: 3 },
-      { name: "ROK", score: 1500, wave: 2 }
+      { name: "ROK", score: 1500, wave: 2 },
+      { name: "ZAP", score: 1200, wave: 2 },
+      { name: "ORB", score: 900, wave: 2 },
+      { name: "UFO", score: 700, wave: 1 },
+      { name: "BLT", score: 500, wave: 1 },
+      { name: "DOT", score: 300, wave: 1 }
     ];
+    const LEADERBOARD_SIZE = 10;
+
+    // The initials last entered, offered first next time
+    function loadInitials() {
+      try { return cleanInitials(localStorage.getItem('asteroids_initials') || ''); } catch (e) { return ''; }
+    }
+    function saveInitials(initials) {
+      try { localStorage.setItem('asteroids_initials', initials); } catch (e) {}
+    }
+    // Up to 3 capital letters or digits
+    const cleanInitials = (text) => String(text).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
 
     function loadLeaderboard() {
       try {
         const val = localStorage.getItem('asteroids_leaderboard');
         if (val) {
           const parsed = JSON.parse(val);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Boards saved before there were 10 places (or short ones) get their empty
+            // places filled with default scores they don't already have; saved scores
+            // are never pushed off
+            if (parsed.length >= LEADERBOARD_SIZE) return parsed;
+            const extra = DEFAULT_LEADERBOARD.filter((d) => !parsed.some((e) => e.name === d.name && e.score === d.score))
+              .slice(0, LEADERBOARD_SIZE - parsed.length);
+            return [...parsed, ...extra].sort((a, b) => b.score - a.score);
+          }
         }
       } catch (e) {}
       return [...DEFAULT_LEADERBOARD];
@@ -1724,6 +1761,7 @@
           relayout.observe(document.querySelector('main'));
         }
         this.setupKeyboard();
+        this.setupInitials();
         this.setupAutoPause();
         this.setupTouchControls();
 
@@ -1814,7 +1852,8 @@
         for (const id of ['btn-replay-best', 'btn-start-replay-best']) {
           const button = document.getElementById(id);
           button.classList.toggle('hidden', !best);
-          if (best) button.querySelector('[data-replay-score]').textContent = best.score.toLocaleString();
+          if (best) button.querySelector('[data-replay-score]').textContent =
+            (best.name ? `${best.name} ` : '') + best.score.toLocaleString();
         }
       }
 
@@ -2170,10 +2209,37 @@
         window.addEventListener('blur', pauseIfPlaying);
       }
 
+      // The initials box on the game over screen: letters and digits only, in capitals;
+      // Enter, Escape, OK or leaving the box saves them
+      setupInitials() {
+        const input = document.getElementById('initials-input');
+        input.addEventListener('input', () => {
+          const clean = cleanInitials(input.value);
+          if (input.value !== clean) input.value = clean;
+        });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation(); // the same Enter mustn't also start a new game
+            this.commitInitials();
+          }
+        });
+        input.addEventListener('blur', () => this.commitInitials(true));
+        // Tapping or clicking into the box selects what's there, so typing replaces it
+        input.addEventListener('focus', () => input.select());
+        // Whether the last thing the player did was a touch (see askInitials)
+        window.addEventListener('pointerdown', (e) => { this.lastInputTouch = e.pointerType === 'touch'; }, true);
+        window.addEventListener('touchstart', () => { this.lastInputTouch = true; }, { capture: true, passive: true });
+        window.addEventListener('keydown', () => { this.lastInputTouch = false; }, true);
+        document.getElementById('btn-initials-ok').addEventListener('click', () => this.commitInitials());
+      }
+
       setupKeyboard() {
         window.addEventListener('keydown', (e) => {
           // Leave browser and system shortcuts (Ctrl+F, Cmd+R, Alt+Tab...) to the browser
           if (e.ctrlKey || e.metaKey || e.altKey) return;
+          // Typing initials: the keys are letters, not game keys (see setupInitials)
+          if (e.target instanceof HTMLInputElement) return;
           this.sound.ensureActive();
 
           // During a replay the controls belong to the recording (see replayKey); mute,
@@ -2398,14 +2464,19 @@
         if (!list) return;
         const board = loadLeaderboard();
         list.innerHTML = '';
-        board.slice(0, 5).forEach((entry, idx) => {
+        // The player's scores (the initials last entered on this device) are picked out,
+        // and the game just played most of all
+        const mine = loadInitials() || 'YOU';
+        board.slice(0, LEADERBOARD_SIZE).forEach((entry, idx) => {
           const row = document.createElement('div');
-          const isUser = entry.name === 'YOU';
-          row.className = `grid grid-cols-4 py-1 px-1.5 rounded ${isUser ? 'bg-yellow-500/20 text-yellow-300 font-bold border border-yellow-500/40' : 'text-neutral-300'}`;
+          const isUser = this.newEntryId != null && entry.id === this.newEntryId;
+          const isMine = !isUser && entry.name === mine;
+          row.className = `grid grid-cols-4 py-1 px-1.5 rounded ${isUser ? 'bg-yellow-500/20 text-yellow-300 font-bold border border-yellow-500/40'
+            : isMine ? 'text-yellow-300' : 'text-neutral-300'}`;
           // Saved entries come from localStorage, so insert them as text, not HTML
           const cells = [
             [`#${idx + 1}`, ''],
-            [String(entry.name), isUser ? 'text-yellow-400' : 'text-white'],
+            [String(entry.name), isUser ? 'text-yellow-400' : isMine ? 'text-yellow-300' : 'text-white'],
             [`W${entry.wave}`, 'text-neutral-400'],
             [Number(entry.score).toLocaleString(), `text-right ${idx === 0 ? 'text-yellow-400' : ''}`]
           ];
@@ -2451,6 +2522,7 @@
 
       // Start a new game and record it (see Replays)
       startGame() {
+        this.commitInitials(); // Play Again before saving the initials still keeps them
         if (this.replay) this.stopReplay();
         const seed = Math.floor(Math.random() * 2 ** 32);
         this.recording = { v: REPLAY_VERSION, seed, gravity: this.gravityLevel, frames: '', events: [] };
@@ -2481,6 +2553,7 @@
       // recording; when it ends, or is stopped, the screen it was started from returns.
       startReplay(rec, label) {
         if (!rec || this.replay) return;
+        this.commitInitials();
         document.getElementById('screen-scores').classList.add('hidden');
         // Everything the replay will overwrite, to put back afterwards
         const keep = ['score', 'lives', 'wave', 'ship', 'asteroids', 'bullets', 'ufoBullets', 'ufo',
@@ -3000,11 +3073,18 @@
         this.saveRecording();
 
         const isNewHigh = this.score > this.highScore;
+        // A score that makes the Hall of Fame goes on it at once, under the last initials
+        // entered (or YOU), and the player is asked for theirs (askInitials)
         const board = loadLeaderboard();
-        if (this.score > 0) {
-          board.push({ name: 'YOU', score: this.score, wave: this.wave });
+        const madeBoard = this.score > 0 &&
+          (board.length < LEADERBOARD_SIZE || this.score > board[LEADERBOARD_SIZE - 1].score);
+        this.newEntryId = null;
+        if (madeBoard) {
+          const entry = { name: loadInitials() || 'YOU', score: this.score, wave: this.wave, id: Date.now() };
+          board.push(entry);
           board.sort((a, b) => b.score - a.score);
-          saveLeaderboard(board.slice(0, 5));
+          saveLeaderboard(board.slice(0, LEADERBOARD_SIZE));
+          this.newEntryId = entry.id;
         }
 
         if (isNewHigh) {
@@ -3021,6 +3101,45 @@
         document.getElementById('game-over-high').textContent = this.highScore.toLocaleString();
 
         document.getElementById('screen-game-over').classList.remove('hidden');
+        this.askInitials(madeBoard);
+      }
+
+      // Initials for a score that made the Hall of Fame. The box starts with the entry's
+      // current name; Enter, OK or leaving the box saves what's typed (if anything).
+      askInitials(show) {
+        const box = document.getElementById('initials-entry'), input = document.getElementById('initials-input');
+        box.classList.toggle('hidden', !show);
+        if (!show) return;
+        input.value = loadInitials() || 'YOU'; // what the entry is already saved under
+        // Ready to type after a keyboard or mouse. After a touch, focusing would pop up
+        // the phone's keyboard over the screen, so the player taps the box instead.
+        if (this.lastInputTouch) return;
+        input.focus({ preventScroll: true });
+        input.select();
+      }
+
+      // Save the typed initials on the new Hall of Fame entry (and its best-game replay).
+      // Leaving the box (keep = true) saves them but leaves the box in place: hiding it
+      // would move the buttons below it between the press and release of a click, so the
+      // click would miss the button the player was pressing.
+      commitInitials(keep = false) {
+        const box = document.getElementById('initials-entry'), input = document.getElementById('initials-input');
+        if (box.classList.contains('hidden')) return;
+        if (!keep) {
+          box.classList.add('hidden');
+          if (document.activeElement === input) input.blur();
+        }
+        const name = cleanInitials(input.value);
+        if (!name || this.newEntryId === null) return;
+        saveInitials(name);
+        const board = loadLeaderboard();
+        const entry = board.find((e) => e.id === this.newEntryId);
+        if (entry) { entry.name = name; saveLeaderboard(board); }
+        if (this.bestGame && this.bestGame === this.lastGame && this.bestGame.score === (entry && entry.score)) {
+          this.bestGame.name = name;
+          saveReplay(REPLAY_KEYS.best, this.bestGame);
+          this.updateReplayButtons();
+        }
       }
 
       // --- Update Physics & Logic ---

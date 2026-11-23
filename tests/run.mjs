@@ -118,6 +118,7 @@ const TESTS = {
   idle: pageTest('idle.js'),
   settings: pageTest('settings.js', ['set', 'check']),
   replay: pageTest('replay.js', ['play', 'check']),
+  initials: pageTest('initials.js'),
   palettes: pageTest('palettes.js'),
   styles: pageTest('styles.js'),
   fullscreen: async (ctx) => (await import('./cdp/fullscreen.mjs')).default(ctx),

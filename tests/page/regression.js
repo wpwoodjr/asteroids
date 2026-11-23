@@ -54,7 +54,7 @@ window.addEventListener('load', () => setTimeout(() => {
     // Leaderboard names are rendered as text, not HTML
     localStorage.setItem('asteroids_leaderboard', JSON.stringify([{ name: '<b>X</b>', score: 5, wave: 1 }]));
     g.renderLeaderboard();
-    ok('leaderboard name is text', document.querySelector('#leaderboard-list span:nth-child(2)').textContent === '<b>X</b>'
+    ok('leaderboard name is text', [...document.querySelectorAll('#leaderboard-list span:nth-child(2)')].some((c) => c.textContent === '<b>X</b>')
        && !document.querySelector('#leaderboard-list b'));
     localStorage.removeItem('asteroids_leaderboard');
 

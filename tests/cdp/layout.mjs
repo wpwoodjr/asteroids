@@ -106,6 +106,31 @@ export default async function ({ send, ev, base, sleep }) {
     ok(`layout change without a resize event (${step}): touch buttons stay just under the playfield`, gap >= 0 && gap <= 12, `${Math.round(gap)} px gap`);
   }
 
+  // Game over with initials being typed: a real click on a button below the box works
+  // (leaving the box mustn't move the buttons between the press and the release)
+  await send('Emulation.setDeviceMetricsOverride', { width: 1000, height: 800, deviceScaleFactor: 1, mobile: false });
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  for (const [btn, what, check] of [
+    ['btn-game-over-scores', 'Scores opens the Hall of Fame', "!document.getElementById('screen-scores').classList.contains('hidden')"],
+    ['btn-play-again', 'Play Again starts a game', "window.__asteroidsGameInstance.state === 'PLAYING'"]]) {
+    await ev(`(() => { const g = window.__asteroidsGameInstance; document.getElementById('screen-scores').classList.add('hidden');
+      localStorage.removeItem('asteroids_leaderboard'); g.startGame(); g.ufo = null; g.ufoSpawnTimer = 1e9; g.lives = 1;
+      g.score = 12340; g.lastExtraLifeScore = 12340; g.onShipDeath();
+      for (let t = 0; t < 3.2 && g.state === 'PLAYING'; t += 0.05) g.update(0.05);
+      const i = document.getElementById('initials-input'); i.focus(); i.value = 'QQ'; })()`);
+    await sleep(200);
+    const [x, y] = await ev(`(() => { const r = document.getElementById('${btn}').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });
+    await sleep(60);
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 });
+    await sleep(300);
+    const r = await ev(`({ worked: ${check}, saved: JSON.parse(localStorage.getItem('asteroids_leaderboard')).some((e) => e.name === 'QQ') })`);
+    ok(`typing initials, then clicking: ${what}`, r.worked);
+    ok(`typing initials, then clicking ${btn.replace('btn-', '')}: the initials are saved`, r.saved);
+  }
+  await ev(`localStorage.removeItem('asteroids_leaderboard'); localStorage.removeItem('asteroids_initials'); window.__asteroidsGameInstance.togglePause()`);
+
   // Phone outside fullscreen, with a 32 px gesture-bar strip at the bottom: the touch
   // buttons stay clear of it, and only the footer line uses it
   await send('Emulation.setDeviceMetricsOverride', { width: 852, height: 718, deviceScaleFactor: 2.4375, mobile: true });

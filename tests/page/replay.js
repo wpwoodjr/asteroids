@@ -138,7 +138,8 @@ window.addEventListener('load', () => setTimeout(() => {
       const last = g.lastGame, best = g.bestGame;
       ok('the saved games load', last && best && last.v === REPLAY_VERSION);
       ok('the start screen offers the best game', !document.getElementById('btn-start-replay-best').classList.contains('hidden') &&
-        document.querySelector('#btn-start-replay-best [data-replay-score]').textContent === best.score.toLocaleString());
+        document.querySelector('#btn-start-replay-best [data-replay-score]').textContent ===
+          (best.name ? `${best.name} ` : '') + best.score.toLocaleString());
       const result = playBack(best, 'BEST GAME', 16.7);
       ok('the saved best game replays exactly', result.finished && result.frame === result.frames && result.score === best.score,
         JSON.stringify(result));

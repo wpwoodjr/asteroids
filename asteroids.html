@@ -2058,7 +2058,7 @@
         // playfield, otherwise one row, which leaves the playfield the most height)
         const touch = document.getElementById('touch-controls');
         touch.style.transform = '';
-        touch.classList.remove('two-row');
+        touch.classList.remove('two-row', 'big');
         main.classList.remove('snug');
 
         // On a narrow screen the playfield is shown upright (3:4) when that makes it
@@ -2095,7 +2095,6 @@
         }
         // Two rows have room across for the large buttons of a wide screen; use them
         // when they don't make the playfield smaller either
-        touch.classList.remove('big');
         if (touch.classList.contains('two-row') && fit.ok) {
           touch.classList.add('big');
           const big = fitFrame();

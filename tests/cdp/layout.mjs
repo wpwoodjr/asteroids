@@ -178,5 +178,22 @@ export default async function ({ send, ev, base, sleep }) {
   ok('gesture strip: page still fits', g.fits);
   ok('gesture strip: playfield uses the freed height', g.frameH >= 530, `${Math.round(g.frameH)} px tall`);
   await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 0 } });
+
+  // The layout depends only on the window, not on the one before it: going fullscreen
+  // and back on the outer screen (369x621 -> 369x800 -> 369x621) once came back 4:3 with
+  // large buttons, because the large buttons from fullscreen were still on when it
+  // measured the upright playfield
+  const layout = `(() => { const g = window.__asteroidsGameInstance, t = document.getElementById('touch-controls');
+    return JSON.stringify({ upright: g.rotated, buttons: t.className.match(/two-row|big/g), w: Math.round(document.getElementById('game-frame').getBoundingClientRect().width) }); })()`;
+  await send('Emulation.setDeviceMetricsOverride', { width: 369, height: 621, deviceScaleFactor: 2.925, mobile: true });
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  const before = await ev(layout);
+  await send('Emulation.setDeviceMetricsOverride', { width: 369, height: 800, deviceScaleFactor: 2.925, mobile: true });
+  await sleep(400);
+  await send('Emulation.setDeviceMetricsOverride', { width: 369, height: 621, deviceScaleFactor: 2.925, mobile: true });
+  await sleep(400);
+  const after = await ev(layout);
+  ok('outer screen: same layout after going taller and back', before === after, `${before} -> ${after}`);
   return out;
 }

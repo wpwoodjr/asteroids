@@ -66,6 +66,10 @@
     header.wrap, header.wrap > div { flex-wrap: wrap; justify-content: center; row-gap: 0.375rem; }
     footer.compact .footer-long { display: none !important; }
     footer.compact .footer-short { display: inline !important; }
+    /* The playfield's outline is a ring drawn outside it rather than a border, so the
+       canvas fills the frame exactly and resize() can line both up with the screen's
+       pixels (Chrome rounds border widths, so a border can't be lined up) */
+    #game-frame { box-shadow: 0 0 0 2px #262626, 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
     .overlay-fit { transform-origin: center; }
     /* The start, pause, game over and Hall of Fame screens: light enough to see the
        rocks behind */
@@ -154,8 +158,8 @@
   <!-- Arcade Game Display Wrapper -->
   <main class="relative w-full flex-1 flex items-center justify-center min-h-0 my-1 overflow-hidden px-2 sm:px-4">
     <!-- Game Canvas Container with Fixed Aspect Ratio Scaling -->
-    <div id="game-frame" class="relative flex items-center justify-center border-2 border-neutral-800 rounded-lg overflow-hidden bg-[#030305] shadow-2xl">
-      <canvas id="game-canvas" class="block w-full h-full"></canvas>
+    <div id="game-frame" class="relative flex items-center justify-center rounded-lg overflow-hidden bg-[#030305]">
+      <canvas id="game-canvas" class="block" style="flex-shrink: 0"></canvas>
 
       <!-- Shown while a replay plays -->
       <div id="replay-bar" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-2 py-1 sm:px-3 sm:py-1.5 bg-black/70 border border-neutral-700 rounded font-arcade text-[9px] sm:text-xs whitespace-nowrap">
@@ -919,6 +923,7 @@
     const GAME_OVER_DELAY = 3;
     const MENU_GROW_BELOW = 0.8; // a menu screen grows past the playfield rather than shrink below this
     const UPRIGHT_GAIN = 1.25; // show the playfield upright when that makes it this much bigger
+    const OUTLINE = 2; // the playfield's outline, in CSS px (drawn outside #game-frame; see its CSS)
     const MENU_FPS = 30; // frame rate behind the start and game over screens
 
     const BULLET_MAX_AXIS = 111 * ARCADE_VEL_UNIT;
@@ -2002,6 +2007,10 @@
       }
 
       resize() {
+        // The page is the window's height. CSS's 100dvh says the same, but Chrome doesn't
+        // always update it when an app's window is resized (on a Googlebook it stayed 51 px
+        // taller than the window, pushing the touch buttons off the bottom).
+        document.body.style.height = `${window.innerHeight}px`;
         this.fitChrome();
         const main = document.querySelector('main');
         const frame = document.getElementById('game-frame');
@@ -2015,12 +2024,11 @@
             width: r.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
             height: r.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
           };
-          let w = rect.width, h = w / targetAspect;
-          if (h > rect.height) {
-            h = rect.height;
-            w = h * targetAspect;
-          }
-          return { w, h, ok: rect.width > 0 && rect.height > 0 };
+          // The view's shape is fitted inside the playfield's 2 px outline (OUTLINE each side)
+          const roomW = rect.width - 2 * OUTLINE, roomH = rect.height - 2 * OUTLINE;
+          const byWidth = roomW / targetAspect <= roomH;
+          const w = byWidth ? roomW : roomH * targetAspect, h = byWidth ? roomW / targetAspect : roomH;
+          return { w: w + 2 * OUTLINE, h: h + 2 * OUTLINE, byWidth, ok: roomW > 0 && roomH > 0 };
         };
 
         // A playfield limited by the screen's width (a narrow screen) uses <main>'s side
@@ -2059,20 +2067,39 @@
         }
         const frameWidth = fit.w, frameHeight = fit.h;
 
-        frame.style.width = `${Math.floor(frameWidth)}px`;
-        frame.style.height = `${Math.floor(frameHeight)}px`;
+        // The frame and the canvas inside it sit exactly on the screen's pixels.
+        // Otherwise (when a CSS pixel isn't a whole number of screen pixels) the canvas's
+        // edge rows are shared with whatever is behind it, which showed as a stray light
+        // line along the bottom on some screens.
+        // The side with no room to spare sets the size, and the other side follows from it
+        // at the view's shape, so the world fills the frame.
+        const dpr = window.devicePixelRatio || 1;
+        const shape = this.viewW / this.viewH;
+        const pixelsW = fit.byWidth ? Math.floor((frameWidth - 2 * OUTLINE) * dpr)
+          : Math.round(Math.floor((frameHeight - 2 * OUTLINE) * dpr) * shape);
+        const pixelsH = fit.byWidth ? Math.round(pixelsW / shape) : Math.floor((frameHeight - 2 * OUTLINE) * dpr);
+        frame.style.width = `${pixelsW / dpr}px`;
+        frame.style.height = `${pixelsH / dpr}px`;
+        frame.style.transform = '';
+        const at = frame.getBoundingClientRect();
+        const nudge = (v) => (Math.round(v * dpr) - v * dpr) / dpr;
+        frame.style.transform = `translate(${nudge(at.left)}px, ${nudge(at.top)}px)`;
 
         // Keep the touch buttons just under the playfield: when the playfield is limited
         // by width it doesn't reach the bottom of its area, so lift the buttons up to it
         // (the playfield itself stays where it is; the spare space ends up below them)
-        const gap = touch.getBoundingClientRect().top - frame.getBoundingClientRect().bottom - 8;
+        const gap = touch.getBoundingClientRect().top - frame.getBoundingClientRect().bottom - OUTLINE - 8;
         if (gap > 0) touch.style.transform = `translateY(${-gap}px)`;
 
-        const dpr = window.devicePixelRatio || 1;
-        this.canvas.width = Math.floor(frameWidth * dpr);
-        this.canvas.height = Math.floor(frameHeight * dpr);
+        // One canvas pixel per screen pixel, plus a spare pixel on every side that the
+        // frame crops off: the browser blends a canvas's outermost pixels with what's
+        // behind it, so those must not be the visible ones
+        this.canvas.width = pixelsW + 2;
+        this.canvas.height = pixelsH + 2;
+        this.canvas.style.width = `${(pixelsW + 2) / dpr}px`;
+        this.canvas.style.height = `${(pixelsH + 2) / dpr}px`;
 
-        const uniformScale = this.canvas.width / this.viewW;
+        const uniformScale = Math.min(pixelsW / this.viewW, pixelsH / this.viewH);
         this.scaleX = uniformScale;
         this.scaleY = uniformScale;
 
@@ -3585,7 +3612,13 @@
         const ctx = this.ctx;
         const theme = THEMES[currentThemeIdx];
 
+        // Paint all of the canvas first: its spare edge pixels, and a sliver the world
+        // may not cover when the frame is a pixel off the world's shape
+        ctx.fillStyle = '#030305';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
         ctx.save();
+        ctx.translate(1, 1); // the spare pixel the frame crops off (see resize)
         ctx.scale(this.scaleX, this.scaleY);
 
         // The world, turned when the view is upright (see viewW)
@@ -4017,11 +4050,21 @@
         if (!probe) { probe = document.createElement('div'); probe.id = 'safe-area-probe'; document.body.appendChild(probe); }
         const p = getComputedStyle(probe);
         const header = document.querySelector('header');
+        // What CSS heights such as 100dvh come out as, which can differ from the window's
+        const cssHeight = (h) => {
+          const d = document.createElement('div');
+          d.style.cssText = `position:fixed;top:0;width:0;height:${h};visibility:hidden`;
+          document.body.appendChild(d);
+          const px = d.getBoundingClientRect().height;
+          d.remove();
+          return `${Math.round(px * 100) / 100}`;
+        };
         const modes = ['fullscreen', 'standalone', 'minimal-ui', 'browser'].filter((m) => matchMedia(`(display-mode: ${m})`).matches);
         const lines = [
           `display-mode: ${modes.join(', ') || '?'}, fullscreen element: ${document.fullscreenElement ? 'yes' : 'no'}`,
           `window ${innerWidth}x${innerHeight}, screen ${screen.width}x${screen.height}, dpr ${devicePixelRatio}`,
           `page ${document.documentElement.scrollWidth}x${document.documentElement.scrollHeight}, zoom ${window.visualViewport ? visualViewport.scale.toFixed(2) : '?'}`,
+          `100dvh ${cssHeight('100dvh')}, 100vh ${cssHeight('100vh')}`,
           `safe-area top ${p.paddingTop} right ${p.paddingRight} bottom ${p.paddingBottom} left ${p.paddingLeft}`,
           `header ${Math.round(header.getBoundingClientRect().width)} wide, needs ${header.scrollWidth}`,
           `root font ${getComputedStyle(document.documentElement).fontSize}`

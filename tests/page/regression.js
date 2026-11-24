@@ -77,6 +77,12 @@ window.addEventListener('load', () => setTimeout(() => {
        /viewport-fit=cover/.test(document.querySelector('meta[name=viewport]').content));
     ok('page fills the screen without scrolling', document.documentElement.scrollHeight <= innerHeight + 1,
        `${document.documentElement.scrollHeight} / ${innerHeight}`);
+    // The page follows the window's real height even if 100dvh is stale (Chrome doesn't
+    // always update it when an app window is resized)
+    document.body.style.height = `${innerHeight + 51}px`;
+    g.resize();
+    ok('page height follows the window, not a stale 100dvh', document.documentElement.scrollHeight <= innerHeight + 1,
+       `${document.documentElement.scrollHeight} / ${innerHeight}`);
 
     // Thrust sound plays only while the ship is actually thrusting, and comes back
     // with a new ship when thrust is held through the respawn

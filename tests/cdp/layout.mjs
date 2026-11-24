@@ -26,7 +26,7 @@ export default async function ({ send, ev, base, sleep }) {
         mode: h.classList.contains('wrap') ? 'two rows' : h.classList.contains('compact') ? 'compact' : 'full',
         upright: window.__asteroidsGameInstance.rotated,
         aspect: document.getElementById('game-frame').getBoundingClientRect().width / document.getElementById('game-frame').getBoundingClientRect().height,
-        buttonGap: document.getElementById('touch-controls').getBoundingClientRect().top - document.getElementById('game-frame').getBoundingClientRect().bottom
+        buttonGap: document.getElementById('touch-controls').getBoundingClientRect().top - document.getElementById('game-frame').getBoundingClientRect().bottom - 2 // 2: the outline
       };
     })()`);
     ok(`${label}: header fits (${r.mode})`, r.headerFits);
@@ -59,11 +59,13 @@ export default async function ({ send, ev, base, sleep }) {
     await sleep(2500);
     const t = await ev(`(() => {
       const touch = document.getElementById('touch-controls'), frame = document.getElementById('game-frame');
-      const twoRows = touch.classList.contains('two-row'), w = frame.getBoundingClientRect().width;
+      // (the playfield's 2 px outline is drawn outside the frame)
+      const twoRows = touch.classList.contains('two-row'), w = frame.getBoundingClientRect().width + 4;
       // Playfield width with the buttons forced onto one row, for comparison
       touch.classList.remove('two-row');
       const m = document.querySelector('main'), ms = getComputedStyle(m), mr = m.getBoundingClientRect();
-      const oneRowW = Math.min(mr.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight), mr.height * 4 / 3);
+      // (the world fills the space inside the outline, so the outlined box is 4 px more than 4:3 each way)
+      const oneRowW = Math.min(mr.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight), (mr.height - 4) * 4 / 3 + 4);
       window.__asteroidsGameInstance.resize();
       const rows = [...new Set([...touch.querySelectorAll('button')].map((b) => Math.round(b.getBoundingClientRect().top / 20)))].length;
       return { twoRows, w, oneRowW, rows };
@@ -90,7 +92,7 @@ export default async function ({ send, ev, base, sleep }) {
   // A playfield limited by the width uses <main>'s side padding, lining up with the header
   const edges = await ev(`(() => {
     const f = document.getElementById('game-frame').getBoundingClientRect(), h = document.querySelector('header').getBoundingClientRect();
-    return { left: f.left - h.left, right: h.right - f.right };
+    return { left: f.left - 2 - h.left, right: h.right - (f.right + 2) }; // 2: the outline outside the frame
   })()`);
   ok('portrait phone: playfield reaches the edges of the header', Math.abs(edges.left) <= 1 && Math.abs(edges.right) <= 1, JSON.stringify(edges));
 

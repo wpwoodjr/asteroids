@@ -67,12 +67,12 @@
     footer.compact .footer-long { display: none !important; }
     footer.compact .footer-short { display: inline !important; }
     .overlay-fit { transform-origin: center; }
-    /* The start, game over and Hall of Fame screens: light enough to see the rocks
-       drifting behind */
-    .menu-backdrop { background-color: rgba(0, 0, 0, 0.6); }
-    /* The Hall of Fame opened from the start or game over screen hides that screen, so
-       only the rocks show behind it */
-    body:has(#screen-scores:not(.hidden)) :is(#screen-start, #screen-game-over) { visibility: hidden; }
+    /* The start, pause, game over and Hall of Fame screens: light enough to see the
+       rocks behind */
+    .menu-backdrop { background-color: rgba(0, 0, 0, 0.5); }
+    /* The Hall of Fame opened from the start, game over or pause screen hides that
+       screen, so only the rocks show behind it */
+    body:has(#screen-scores:not(.hidden)) :is(#screen-start, #screen-game-over, #screen-pause) { visibility: hidden; }
     .initials-input { letter-spacing: 0.4em; padding-left: calc(0.5rem + 0.4em); user-select: text; -webkit-user-select: text; }
     .initials-input:focus { outline: none; box-shadow: 0 0 12px rgba(234, 179, 8, 0.6); }
     /* Two-row touch controls (chosen by resize() when there's room): Hyperspace under
@@ -119,11 +119,12 @@
     <!-- Quick action buttons -->
     <div class="flex items-center gap-2">
       <button id="btn-theme" class="whitespace-nowrap px-2.5 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition flex items-center gap-1.5 text-xs" title="Change Vector Color Theme">
-        <span class="inline-flex items-center gap-0.5" id="theme-indicator" title="Asteroids, ship, saucer">
-          <span class="w-2 h-2 rounded-full inline-block bg-white" data-part="rock"></span>
-          <span class="w-2 h-2 rounded-full inline-block bg-white" data-part="ship"></span>
-          <span class="w-2 h-2 rounded-full inline-block bg-white" data-part="saucer"></span>
-        </span>
+        <!-- The ship, in the palette's ship color -->
+        <svg id="theme-indicator" width="17" height="12" viewBox="-13 -10 28 20" aria-hidden="true">
+          <path d="M14 0 L-12 -9 L-8 -4.5 L-8 4.5 L-12 9 Z" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round"/>
+        </svg>
+        <!-- Nebula's starfighter instead (drawn by setTheme) -->
+        <canvas id="theme-ship-art" class="hidden" style="width: 20px; height: 15px" aria-hidden="true"></canvas>
         <span id="theme-name" class="btn-label">Classic</span>
       </button>
 
@@ -221,7 +222,7 @@
       </div>
 
       <!-- Pause Overlay Screen -->
-      <div id="screen-pause" data-overlay class="hidden absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30">
+      <div id="screen-pause" data-overlay class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center p-6 text-center z-30">
         <div class="overlay-fit w-full flex flex-col items-center">
         <h2 class="font-arcade text-3xl sm:text-4xl text-white tracking-widest mb-6 vector-glow">GAME PAUSED</h2>
         <div class="flex flex-col gap-3 w-48">
@@ -917,6 +918,7 @@
     // explosion to play out and shots still in flight to land
     const GAME_OVER_DELAY = 3;
     const MENU_GROW_BELOW = 0.8; // a menu screen grows past the playfield rather than shrink below this
+    const UPRIGHT_GAIN = 1.25; // show the playfield upright when that makes it this much bigger
     const MENU_FPS = 30; // frame rate behind the start and game over screens
 
     const BULLET_MAX_AXIS = 111 * ARCADE_VEL_UNIT;
@@ -1133,7 +1135,9 @@
       // middle of the screen. The motion has its own clock that only runs while frames are
       // drawn, so it's not part of the game (or its replays) and doesn't jump after a pause.
       drawBackground(ctx, game) {
-        const W = game.canvas.width, H = game.canvas.height, w = game.width, h = game.height;
+        // (Built at the canvas's resolution and drawn in world coordinates, so it turns
+        // with the playfield when the view is upright)
+        const w = game.width, h = game.height, W = Math.round(w * game.scaleX), H = Math.round(h * game.scaleX);
         if (!this.background || this.background.width !== W || this.background.height !== H) {
           const c = this.canvas(W, H), g = c.getContext('2d'), k = W / w;
           const rand = seededRandom(1979);
@@ -1188,16 +1192,15 @@
         this.skyTime += dt;
 
         ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.drawImage(this.background, 0, 0);
+        ctx.drawImage(this.background, 0, 0, w, h);
         // An endless zoom into the nebulas: one copy grows from 1x to 2x as it fades in,
         // while another grows from 2x to 4x as it fades out, so they hand over seamlessly
         const f = (this.skyTime / NEBULA_ZOOM_SECONDS) % 1, z = Math.pow(2, f);
         ctx.globalCompositeOperation = 'lighter';
         for (const [scale, alpha] of [[z, f], [z * 2, 1 - f]]) {
-          const dw = W * scale, dh = H * scale;
+          const dw = w * scale, dh = h * scale;
           ctx.globalAlpha = alpha;
-          ctx.drawImage(this.nebulas, (W - dw) / 2, (H - dh) / 2, dw, dh);
+          ctx.drawImage(this.nebulas, (w - dw) / 2, (h - dh) / 2, dw, dh);
         }
         ctx.restore();
 
@@ -1310,7 +1313,7 @@
         ctx.rotate(a.rot);
         ctx.drawImage(pic.canvas, -pic.R, -pic.R, pic.R * 2, pic.R * 2);
         // Sunlit on the side facing the light, in shadow on the far side
-        const l = lightAt(a.rot), R = pic.R;
+        const l = lightAt(a.rot + this.turn), R = pic.R;
         const shade = ctx.createLinearGradient(l.x * R, l.y * R, -l.x * R, -l.y * R);
         shade.addColorStop(0, 'rgba(255, 240, 215, 0.28)');
         shade.addColorStop(0.4, 'rgba(0, 0, 0, 0)');
@@ -1376,6 +1379,7 @@
         const pic = this.planetPicture(level, R, k);
         ctx.save();
         ctx.translate(p.x, p.y);
+        ctx.rotate(-this.turn);
         // The pull: faint rings, as in the other palettes
         for (let r = 1; r <= cfg.rings; r++) {
           ctx.beginPath();
@@ -1433,12 +1437,11 @@
         if (!blink) {
           // A starfighter: slim nose, swept wings and two engines. Drawn a bit larger than
           // the vector outline (SHIP_ART_SCALE), since it covers less area.
-          const l = lightAt(s.angle);
+          const l = lightAt(s.angle + this.turn);
           const metal = ctx.createLinearGradient(l.x * 11, l.y * 11, -l.x * 11, -l.y * 11);
           metal.addColorStop(0, '#f1f5f9');
           metal.addColorStop(0.5, '#a8b3c2');
           metal.addColorStop(1, '#4b5563');
-          const edge = () => { ctx.strokeStyle = 'rgba(10, 15, 25, 0.85)'; ctx.lineWidth = 0.6; ctx.stroke(); };
           // Engine flames, behind everything. Thrust fires both engines; turning fires
           // the engine on the outside of the turn (the right one to turn left), and
           // turning while thrusting turns the inside engine down. Only the look: the
@@ -1476,50 +1479,7 @@
             ctx.fillRect(-25, glowY - 13, 26, 26);
             ctx.globalCompositeOperation = 'source-over';
           }
-          ctx.fillStyle = metal;
-          // Wings, swept back
-          for (const side of [-1, 1]) {
-            ctx.beginPath();
-            ctx.moveTo(1, side * 1.8);
-            ctx.lineTo(-8, side * 9.5);
-            ctx.lineTo(-11, side * 9.5);
-            ctx.lineTo(-9, side * 1.8);
-            ctx.closePath();
-            ctx.fill();
-            edge();
-          }
-          // Engines beside the tail
-          for (const y of [-3.4, 3.4]) {
-            ctx.beginPath();
-            ctx.rect(-11.5, y - 1.5, 7, 3);
-            ctx.fillStyle = '#7b8594';
-            ctx.fill();
-            edge();
-            ctx.fillStyle = power(y) ? '#fde68a' : '#1f2937';
-            ctx.fillRect(-11.8, y - 1, 0.9, 2);
-          }
-          // Fuselage: a pointed nose that widens back to the cockpit
-          ctx.beginPath();
-          ctx.moveTo(14.5, 0);
-          ctx.lineTo(7, -2.4);
-          ctx.lineTo(2, -3.1);
-          ctx.lineTo(-10, -2.6);
-          ctx.lineTo(-10, 2.6);
-          ctx.lineTo(2, 3.1);
-          ctx.lineTo(7, 2.4);
-          ctx.closePath();
-          ctx.fillStyle = metal;
-          ctx.fill();
-          edge();
-          // Cockpit canopy
-          ctx.fillStyle = '#1e293b';
-          ctx.beginPath();
-          ctx.ellipse(2.5, 0, 2.8, 1.5, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = 'rgba(186, 230, 253, 0.55)';
-          ctx.beginPath();
-          ctx.ellipse(3.2 + l.x * 0.6, l.y * 0.5, 1, 0.45, 0, 0, Math.PI * 2);
-          ctx.fill();
+          this.drawStarfighter(ctx, l, metal, power);
         }
         if (s.invulnerable > 0) {
           // Force field bubble (sized in world units, like the vector one)
@@ -1536,6 +1496,77 @@
         ctx.restore();
       }
 
+      // The starfighter itself (without flames), pointing along +x, in the ship-art
+      // units of drawShip(). l is the direction of the light; power(y) says whether the
+      // engine at y is firing. Also used for the palette button and the ships left.
+      drawStarfighter(ctx, l, metal, power) {
+        const edge = () => { ctx.strokeStyle = 'rgba(10, 15, 25, 0.85)'; ctx.lineWidth = 0.6; ctx.stroke(); };
+        ctx.fillStyle = metal;
+        // Wings, swept back
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(1, side * 1.8);
+          ctx.lineTo(-8, side * 9.5);
+          ctx.lineTo(-11, side * 9.5);
+          ctx.lineTo(-9, side * 1.8);
+          ctx.closePath();
+          ctx.fill();
+          edge();
+        }
+        // Engines beside the tail
+        for (const y of [-3.4, 3.4]) {
+          ctx.beginPath();
+          ctx.rect(-11.5, y - 1.5, 7, 3);
+          ctx.fillStyle = '#7b8594';
+          ctx.fill();
+          edge();
+          ctx.fillStyle = power(y) ? '#fde68a' : '#1f2937';
+          ctx.fillRect(-11.8, y - 1, 0.9, 2);
+        }
+        // Fuselage: a pointed nose that widens back to the cockpit
+        ctx.beginPath();
+        ctx.moveTo(14.5, 0);
+        ctx.lineTo(7, -2.4);
+        ctx.lineTo(2, -3.1);
+        ctx.lineTo(-10, -2.6);
+        ctx.lineTo(-10, 2.6);
+        ctx.lineTo(2, 3.1);
+        ctx.lineTo(7, 2.4);
+        ctx.closePath();
+        ctx.fillStyle = metal;
+        ctx.fill();
+        edge();
+        // Cockpit canopy
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.ellipse(2.5, 0, 2.8, 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(186, 230, 253, 0.55)';
+        ctx.beginPath();
+        ctx.ellipse(3.2 + l.x * 0.6, l.y * 0.5, 1, 0.45, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // The starfighter as a small icon, pointing at the given screen angle and size (its
+      // length, nose to tail), lit from the upper left
+      drawStarfighterIcon(ctx, x, y, angle, length) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+        const k = length / 26.3;
+        ctx.scale(k, k);
+        ctx.translate(-1.35, 0); // center it between nose (14.5) and engines (-11.8)
+        const l = lightAt(angle);
+        const metal = ctx.createLinearGradient(l.x * 11, l.y * 11, -l.x * 11, -l.y * 11);
+        metal.addColorStop(0, '#f1f5f9');
+        metal.addColorStop(0.5, '#a8b3c2');
+        metal.addColorStop(1, '#4b5563');
+        this.drawStarfighter(ctx, l, metal, () => 0);
+        ctx.restore();
+      }
+
       drawSaucer(ctx, u) {
         const r = u.radius;
         // The small saucer, the one that aims at you, has red lights; the large one amber
@@ -1544,6 +1575,7 @@
           : { on: '#fde68a', off: '#b45309', glow: '253, 230, 138', under: '245, 158, 11' };
         ctx.save();
         ctx.translate(u.x, u.y);
+        ctx.rotate(-this.turn);
         // Glow underneath
         const under = ctx.createRadialGradient(0, r * 0.3, 0, 0, r * 0.3, r * 1.1);
         under.addColorStop(0, `rgba(${lights.under}, 0.3)`);
@@ -1655,6 +1687,10 @@
 
       drawWorld(ctx, game, theme) {
         const k = game.scaleX;
+        // When the playfield is shown upright (turned a quarter turn clockwise), the
+        // saucer and planet are turned back, and the light still comes from the screen's
+        // upper left
+        this.turn = game.rotated ? Math.PI / 2 : 0;
         ctx.save();
         ctx.shadowBlur = 0;
         this.drawBackground(ctx, game);
@@ -1682,6 +1718,7 @@
         this.height = 750;
         this.scaleX = 1;
         this.scaleY = 1;
+        this.rotated = false; // shown upright on narrow screens (see viewW)
 
         // Game State
         this.state = 'START';
@@ -1725,6 +1762,7 @@
         this.waveTransitionTimer = 0;
         this.waveTransitionText = '';
         this.paletteChosen = false; // see applySavedSettings()
+        this.paletteReached = 0; // the furthest of AUTO_PALETTES reached so far (see autoPalette())
         this.paletteHint = '';
 
         // Input state
@@ -1969,8 +2007,8 @@
         const frame = document.getElementById('game-frame');
         if (!main || !frame) return;
 
-        // Largest 4:3 playfield that fits inside <main>'s padding
-        const targetAspect = this.width / this.height;
+        // Largest playfield of the view's shape that fits inside <main>'s padding
+        let targetAspect = this.width / this.height;
         const fitFrame = () => {
           const style = getComputedStyle(main), r = main.getBoundingClientRect();
           const rect = {
@@ -1992,6 +2030,15 @@
         touch.style.transform = '';
         touch.classList.remove('two-row');
         main.classList.remove('snug');
+
+        // On a narrow screen the playfield is shown upright (3:4) when that makes it
+        // clearly bigger, as on a phone held in portrait. See viewW.
+        const wide = fitFrame();
+        targetAspect = this.height / this.width;
+        const upright = fitFrame();
+        this.rotated = upright.w * upright.h > UPRIGHT_GAIN * wide.w * wide.h;
+        targetAspect = this.viewW / this.viewH;
+
         const roomy = fitFrame();
         const mainBox = main.getBoundingClientRect(), mainStyle = getComputedStyle(main);
         const tall = mainBox.height - parseFloat(mainStyle.paddingTop) - parseFloat(mainStyle.paddingBottom);
@@ -2025,12 +2072,12 @@
         this.canvas.width = Math.floor(frameWidth * dpr);
         this.canvas.height = Math.floor(frameHeight * dpr);
 
-        const uniformScale = this.canvas.width / this.width;
+        const uniformScale = this.canvas.width / this.viewW;
         this.scaleX = uniformScale;
         this.scaleY = uniformScale;
 
         // Enlarge the HUD on small screens so the score stays at least ~12 CSS px tall
-        const cssScale = frameWidth / this.width;
+        const cssScale = frameWidth / this.viewW;
         this.hudScale = Math.min(2.2, Math.max(1, 12 / (18 * cssScale)));
 
         // Menu screens may cover more than the playfield, so fit them again too
@@ -2077,7 +2124,8 @@
         // it changes by itself as the waves go by (see autoPalette()).
         const themeIdx = THEMES.findIndex((t) => t.name === saved.palette);
         this.paletteChosen = themeIdx >= 0;
-        this.setTheme(themeIdx >= 0 ? themeIdx : 0);
+        this.paletteReached = Math.max(0, AUTO_PALETTES.indexOf(saved.paletteReached));
+        this.setTheme(themeIdx >= 0 ? themeIdx : Math.max(0, THEMES.findIndex((t) => t.name === AUTO_PALETTES[this.paletteReached])));
         if (typeof saved.muted === 'boolean') this.setAudioMuted(saved.muted);
         if (Number.isInteger(saved.gravity) && saved.gravity >= 0 && saved.gravity < GRAVITY_LEVELS.length) {
           this.setGravityLevel(saved.gravity, false);
@@ -2087,6 +2135,7 @@
       persistSettings() {
         saveSettings({
           palette: this.paletteChosen ? THEMES[currentThemeIdx].name : undefined,
+          paletteReached: !this.paletteChosen && this.paletteReached > 0 ? AUTO_PALETTES[this.paletteReached] : undefined,
           muted: this.sound.muted,
           // A replay plays at the gravity it was recorded with; keep the player's own
           gravity: this.replay ? this.replay.gravity : this.gravityLevel
@@ -2102,13 +2151,19 @@
         this.persistSettings();
       }
 
-      // Until the player picks a palette, each game starts in Classic, switches to Neon
-      // at wave 2 and to Nebula at wave 3, with a hint under the wave banner saying how
-      // to choose one. Replays do the same.
+      // Until the player picks a palette, it switches from Classic to Neon at wave 2 and
+      // to Nebula at wave 3, with a hint under the wave banner saying how to choose one.
+      // The furthest one reached stays: the next game starts in it. Replays switch the
+      // same way but don't move that on.
       autoPalette(waveNum) {
         this.paletteHint = '';
         if (this.paletteChosen) return;
-        const name = AUTO_PALETTES[Math.min(waveNum, AUTO_PALETTES.length) - 1];
+        const stage = Math.max(Math.min(waveNum, AUTO_PALETTES.length) - 1, this.paletteReached);
+        if (stage > this.paletteReached && !this.replay) {
+          this.paletteReached = stage;
+          this.persistSettings();
+        }
+        const name = AUTO_PALETTES[stage];
         const idx = THEMES.findIndex((t) => t.name === name);
         if (idx < 0 || idx === currentThemeIdx) return;
         this.setTheme(idx);
@@ -2124,8 +2179,18 @@
         const theme = THEMES[currentThemeIdx];
         document.documentElement.style.setProperty('--primary-color', theme.primary);
         document.documentElement.style.setProperty('--glow-color', theme.glow);
-        for (const dot of document.querySelectorAll('#theme-indicator [data-part]')) {
-          dot.style.backgroundColor = theme[dot.dataset.part];
+        document.querySelector('#theme-indicator path').setAttribute('stroke', theme.ship);
+        const art = document.getElementById('theme-ship-art');
+        document.getElementById('theme-indicator').classList.toggle('hidden', !!theme.realistic);
+        art.classList.toggle('hidden', !theme.realistic);
+        if (theme.realistic) {
+          const dpr = window.devicePixelRatio || 1;
+          art.width = Math.round(20 * dpr); art.height = Math.round(15 * dpr);
+          const c = art.getContext('2d');
+          c.setTransform(dpr, 0, 0, dpr, 0, 0);
+          c.clearRect(0, 0, 20, 15);
+          this.art = this.art || new RealisticArt();
+          this.art.drawStarfighterIcon(c, 10, 7.5, 0, 19);
         }
         document.getElementById('theme-name').textContent = theme.name;
         this.resize(); // the header may need compacting for a longer name
@@ -2183,7 +2248,7 @@
         if (!announce) return;
         // Changing gravity during a game changes how it plays out, so it's recorded
         if (this.state === 'PLAYING' || this.state === 'PAUSED') this.recordEvent(REPLAY_EVENT.gravity + level);
-        this.addFloatingText(this.width / 2, this.height / 2 - 65, cfg.msg, cfg.color);
+        this.addFloatingText(this.viewW / 2, this.viewH / 2 - 65, cfg.msg, cfg.color, { screen: true });
         if (this.gravityMode) this.sound.playExtraLife();
 
         if (this.gravityMode && this.isShipActive()) {
@@ -2907,7 +2972,7 @@
       exitHyperspace() {
         if (this.ship.hyperDoomed) {
           this.ship.hyperDoomed = false;
-          this.addFloatingText(this.ship.x, this.ship.y - 25, 'HYPERSPACE FAILED', '#c084fc');
+          this.addFloatingText(this.ship.x, this.ship.y, 'HYPERSPACE FAILED', '#c084fc', { rise: 25 });
           this.onShipDeath();
           return;
         }
@@ -3039,16 +3104,19 @@
         }
       }
 
-      addFloatingText(x, y, text, color = '#fbbf24') {
-        this.floatingTexts.push({
-          x,
-          y,
-          text,
-          color,
-          life: 0.8,
-          maxLife: 0.8
-        });
+      // A short message that floats up the screen and fades. It's placed at a point in
+      // the world (x, y), or with screen: true at a point on the screen; rise lifts it
+      // above that point to start with. Either way it's drawn upright.
+      addFloatingText(x, y, text, color = '#fbbf24', { rise = 0, screen = false } = {}) {
+        this.floatingTexts.push({ x, y, text, color, rise, screen, life: 0.8, maxLife: 0.8 });
       }
+
+      // The playfield as it's seen: the world is always 1000 x 750, but on a narrow screen
+      // it's shown turned a quarter turn clockwise (upright), 750 wide and 1000 tall.
+      // Only the drawing turns, so the game, its scores and replays are the same.
+      get viewW() { return this.rotated ? this.height : this.width; }
+      get viewH() { return this.rotated ? this.width : this.height; }
+      toView(x, y) { return this.rotated ? { x: this.height - y, y: x } : { x, y }; }
 
       togglePause() {
         if (this.state === 'PLAYING') {
@@ -3059,6 +3127,8 @@
           this.sound.suspendWhenIdle();
           document.getElementById('screen-pause').classList.remove('hidden');
         } else if (this.state === 'PAUSED') {
+          // Not from behind the Hall of Fame or Help: close that first
+          if (this.isModalOpen()) return;
           this.sound.ensureActive();
           this.state = 'PLAYING';
           this.lastTime = performance.now();
@@ -3379,7 +3449,7 @@
         // Update Floating Texts
         for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
           const ft = this.floatingTexts[i];
-          ft.y -= 30 * dt;
+          ft.rise += 30 * dt;
           ft.life -= dt;
           if (ft.life <= 0) {
             this.floatingTexts.splice(i, 1);
@@ -3393,7 +3463,7 @@
           this.lives++;
           this.lastExtraLifeScore = Math.floor(this.score / 10000) * 10000;
           this.sound.playExtraLife();
-          this.addFloatingText(this.width / 2, 80, "+1 EXTRA SHIP", "#34d399");
+          this.addFloatingText(this.viewW / 2, 80, "+1 EXTRA SHIP", "#34d399", { screen: true });
         }
       }
 
@@ -3418,7 +3488,7 @@
           } else if (shipVulnerable() && arcadeHit(b.x, b.y, this.ship.x, this.ship.y, this.ship.hitSize)) {
             // A shot that wraps around the screen can hit its own ship
             this.bullets.splice(bi, 1);
-            this.addFloatingText(this.ship.x, this.ship.y - 25, 'OWN SHOT!', '#ef4444');
+            this.addFloatingText(this.ship.x, this.ship.y, 'OWN SHOT!', '#ef4444', { rise: 25 });
             this.onShipDeath();
           }
         }
@@ -3518,12 +3588,20 @@
         ctx.save();
         ctx.scale(this.scaleX, this.scaleY);
 
+        // The world, turned when the view is upright (see viewW)
+        ctx.save();
+        if (this.rotated) {
+          ctx.translate(this.height, 0);
+          ctx.rotate(Math.PI / 2);
+        }
         if (theme.realistic) {
           if (!this.art) this.art = new RealisticArt();
           this.art.drawWorld(ctx, this, theme);
         } else {
           this.drawVectorWorld(ctx, theme);
         }
+        ctx.restore();
+        // Text from here on is drawn upright, in view coordinates
         ctx.shadowBlur = 8;
 
         // Draw Floating Score Popups
@@ -3535,13 +3613,17 @@
           ctx.globalAlpha = alpha;
           ctx.fillStyle = ft.color;
           ctx.shadowColor = ft.color;
-          ctx.fillText(ft.text, ft.x, ft.y);
+          const at = ft.screen ? ft : this.toView(ft.x, ft.y);
+          ctx.fillText(ft.text, at.x, at.y - ft.rise);
           ctx.restore();
         }
 
         this.renderHUD(ctx, theme);
 
-        const banner = this.gameOverTimer > 0 ? 'GAME OVER' : (this.waveTransitionTimer > 0 ? this.waveTransitionText : '');
+        // (Not under the pause screen, whose see-through backdrop would show it clashing
+        // with GAME PAUSED)
+        const banner = this.state === 'PAUSED' ? '' :
+          this.gameOverTimer > 0 ? 'GAME OVER' : (this.waveTransitionTimer > 0 ? this.waveTransitionText : '');
         if (banner) {
           ctx.save();
           ctx.font = "24px 'Press Start 2P', monospace";
@@ -3551,14 +3633,14 @@
           // With a palette hint, the banner moves up so the hint fits between it and the
           // ship (which starts each wave in the middle)
           const hint = banner === this.waveTransitionText && this.paletteHint;
-          ctx.fillText(banner, this.width / 2, this.height / 2 - (hint ? 66 : 40));
+          ctx.fillText(banner, this.viewW / 2, this.viewH / 2 - (hint ? 66 : 40));
           if (hint) {
             // Smaller and dimmer, shrunk if needed to fit the playfield
             ctx.font = "11px 'Press Start 2P', monospace";
             const w = ctx.measureText(this.paletteHint).width;
-            if (w > this.width - 40) ctx.font = `${Math.floor(11 * (this.width - 40) / w)}px 'Press Start 2P', monospace`;
+            if (w > this.viewW - 40) ctx.font = `${Math.floor(11 * (this.viewW - 40) / w)}px 'Press Start 2P', monospace`;
             ctx.globalAlpha = 0.7;
-            ctx.fillText(this.paletteHint, this.width / 2, this.height / 2 - 34);
+            ctx.fillText(this.paletteHint, this.viewW / 2, this.viewH / 2 - 34);
           }
           ctx.restore();
         }
@@ -3585,6 +3667,7 @@
 
           ctx.save();
           ctx.translate(this.planet.x, this.planet.y);
+          if (this.rotated) ctx.rotate(-Math.PI / 2);
 
           for (let r = 1; r <= cfg.rings; r++) {
             const ringRadius = this.planet.radius + r * 44 + Math.sin(this.planet.pulse + r * 0.4) * (this.gravityLevel + 1);
@@ -3662,6 +3745,7 @@
         if (this.ufo) {
           ctx.save();
           ctx.translate(this.ufo.x, this.ufo.y);
+          if (this.rotated) ctx.rotate(-Math.PI / 2); // upright on screen when the view is
           ctx.strokeStyle = theme.saucer;
           ctx.shadowColor = theme.saucerGlow;
           ctx.lineWidth = 2;
@@ -3692,19 +3776,22 @@
           const isShieldBlink = this.ship.invulnerable > 0 && Math.floor(Date.now() / 100) % 2 === 0;
 
           if (!isShieldBlink) {
+            // As in the arcade original: a flat crossbar at the back, set forward of the
+            // swept-back wing tips, and the flame a V behind it
             ctx.beginPath();
             ctx.moveTo(14, 0);
             ctx.lineTo(-12, -9);
-            ctx.lineTo(-7, 0);
+            ctx.lineTo(-8, -4.5);
+            ctx.lineTo(-8, 4.5);
             ctx.lineTo(-12, 9);
             ctx.closePath();
             ctx.stroke();
 
             if (this.keys.thrust && Math.random() < 0.8) {
               ctx.beginPath();
-              ctx.moveTo(-7, -4);
+              ctx.moveTo(-8, -4.5);
               ctx.lineTo(-17 - Math.random() * 6, 0);
-              ctx.lineTo(-7, 4);
+              ctx.lineTo(-8, 4.5);
               ctx.strokeStyle = '#f97316';
               ctx.shadowColor = 'rgba(249, 115, 22, 0.8)';
               ctx.stroke();
@@ -3789,14 +3876,14 @@
         ctx.fillStyle = '#e2e8f0';
 
         ctx.save();
-        ctx.translate(this.width / 2, 0);
+        ctx.translate(this.viewW / 2, 0);
         ctx.scale(s, s);
         ctx.textAlign = 'center';
         ctx.fillText(`HI: ${Math.max(this.score, this.highScore).toLocaleString()}`, 0, 40);
         ctx.restore();
 
         ctx.save();
-        ctx.translate(this.width, 0);
+        ctx.translate(this.viewW, 0);
         ctx.scale(s, s);
         ctx.textAlign = 'right';
         ctx.fillText(`WAVE ${this.wave}`, -30, 42);
@@ -3806,13 +3893,22 @@
         ctx.shadowColor = theme.glow;
         ctx.scale(s, s);
         for (let i = 0; i < this.lives; i++) {
+          if (theme.realistic) {
+            // Nebula shows its own ship
+            this.art = this.art || new RealisticArt();
+            this.art.drawStarfighterIcon(ctx, 36 + i * 24, 66, -Math.PI / 2, 24);
+            continue;
+          }
           ctx.save();
-          ctx.translate(35 + i * 22, 65);
+          ctx.translate(36 + i * 24, 67);
           ctx.rotate(-Math.PI / 2);
+          ctx.scale(1.2, 1.2);
+          ctx.lineWidth = 1.5 / 1.2;
           ctx.beginPath();
           ctx.moveTo(10, 0);
           ctx.lineTo(-8, -6);
-          ctx.lineTo(-4, 0);
+          ctx.lineTo(-5.3, -3);
+          ctx.lineTo(-5.3, 3);
           ctx.lineTo(-8, 6);
           ctx.closePath();
           ctx.stroke();

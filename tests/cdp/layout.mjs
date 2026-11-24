@@ -6,12 +6,12 @@ export default async function ({ send, ev, base, sleep }) {
   const out = [];
   const ok = (n, c, x = '') => out.push(`${c ? 'PASS' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`);
   const sizes = [
-    ['small phone', 360, 740, 3],
+    ['small phone', 360, 740, 3, true],
     ['phone at a larger display scale', 735, 663, 2.925],
     ['phone', 883, 796, 2.4375],
     ['desktop', 1280, 800, 1]
   ];
-  for (const [label, width, height, scale] of sizes) {
+  for (const [label, width, height, scale, upright = false] of sizes) {
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: width < 1000 });
     await send('Page.navigate', { url: `${base}/asteroids.html` });
     await sleep(2500);
@@ -24,6 +24,7 @@ export default async function ({ send, ev, base, sleep }) {
         footerFits: f.scrollWidth <= f.clientWidth + 1,
         pageFits: document.documentElement.scrollWidth <= innerWidth + 1 && document.documentElement.scrollHeight <= innerHeight + 1,
         mode: h.classList.contains('wrap') ? 'two rows' : h.classList.contains('compact') ? 'compact' : 'full',
+        upright: window.__asteroidsGameInstance.rotated,
         aspect: document.getElementById('game-frame').getBoundingClientRect().width / document.getElementById('game-frame').getBoundingClientRect().height,
         buttonGap: document.getElementById('touch-controls').getBoundingClientRect().top - document.getElementById('game-frame').getBoundingClientRect().bottom
       };
@@ -32,7 +33,8 @@ export default async function ({ send, ev, base, sleep }) {
     ok(`${label}: no button text wraps`, r.tallestButton <= 40, `tallest button ${r.tallestButton}px`);
     ok(`${label}: footer fits on one line`, r.footerFits);
     ok(`${label}: page fits the screen`, r.pageFits);
-    ok(`${label}: playfield is 4:3, not squashed`, Math.abs(r.aspect - 4 / 3) < 0.01, r.aspect.toFixed(3));
+    const shape = upright ? 3 / 4 : 4 / 3;
+    ok(`${label}: playfield is ${upright ? 'upright, 3:4' : '4:3'}, not squashed`, r.upright === upright && Math.abs(r.aspect - shape) < 0.01, r.aspect.toFixed(3));
     ok(`${label}: touch buttons sit just under the playfield`, r.buttonGap >= 0 && r.buttonGap <= 12, `${Math.round(r.buttonGap)} px gap`);
     for (const id of ['screen-start', 'screen-help', 'screen-game-over']) {
       const v = await ev(`new Promise((done) => {
@@ -70,10 +72,32 @@ export default async function ({ send, ev, base, sleep }) {
     ok(`${label}: playfield not smaller than with one row`, t.w >= t.oneRowW - 1, `${Math.round(t.w)} vs ${Math.round(t.oneRowW)} px wide`);
   }
 
-  // Narrow phone in portrait: the start screen doesn't fit the playfield, so it grows to
-  // cover the area between the header and footer (hiding the touch buttons), and fits
-  // there without scrolling or shrinking. Starting a game puts the buttons back.
+  // Narrow phone in portrait: the playfield is shown upright, 3:4, which makes it much
+  // bigger, and the start screen fits on it
   await send('Emulation.setDeviceMetricsOverride', { width: 411, height: 790, deviceScaleFactor: 2.625, mobile: true });
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  const u = await ev(`(() => {
+    const g = window.__asteroidsGameInstance, f = document.getElementById('game-frame').getBoundingClientRect();
+    const o = document.getElementById('screen-start'), t = getComputedStyle(o.querySelector('.overlay-fit')).transform;
+    return { rotated: g.rotated, w: f.width, h: f.height, view: [g.viewW, g.viewH], grown: o.classList.contains('menu-expanded'),
+      scale: t === 'none' ? 1 : new DOMMatrix(t).a, canvas: [g.canvas.width, g.canvas.height] };
+  })()`);
+  ok('portrait phone: playfield shown upright', u.rotated && u.view[0] === 750 && u.view[1] === 1000);
+  ok('portrait phone: upright playfield is much bigger than 4:3 would be', u.w * u.h > 1.5 * u.w * (u.w * 3 / 4), `${Math.round(u.w)}x${Math.round(u.h)}`);
+  ok('portrait phone: canvas is portrait too', u.canvas[1] > u.canvas[0], u.canvas.join('x'));
+  ok('portrait phone: start screen fits on the playfield', !u.grown && u.scale > 0.95, `scale ${u.scale.toFixed(2)}`);
+  // A playfield limited by the width uses <main>'s side padding, lining up with the header
+  const edges = await ev(`(() => {
+    const f = document.getElementById('game-frame').getBoundingClientRect(), h = document.querySelector('header').getBoundingClientRect();
+    return { left: f.left - h.left, right: h.right - f.right };
+  })()`);
+  ok('portrait phone: playfield reaches the edges of the header', Math.abs(edges.left) <= 1 && Math.abs(edges.right) <= 1, JSON.stringify(edges));
+
+  // A short phone in landscape: the start screen doesn't fit the playfield, so it grows
+  // to cover the area between the header and footer (hiding the touch buttons).
+  // Starting a game puts the buttons back.
+  await send('Emulation.setDeviceMetricsOverride', { width: 790, height: 411, deviceScaleFactor: 2.625, mobile: true });
   await send('Page.navigate', { url: `${base}/asteroids.html` });
   await sleep(2500);
   const p = await ev(`(() => {
@@ -84,18 +108,13 @@ export default async function ({ send, ev, base, sleep }) {
       fits: cr.top >= r.top - 0.5 && cr.bottom <= r.bottom + 0.5,
       touchHidden: getComputedStyle(document.getElementById('touch-controls')).visibility === 'hidden' };
   })()`);
-  ok('portrait phone: start screen grows past the playfield', p.grown);
-  ok('portrait phone: start screen fits without scrolling or shrinking', p.fits && !p.scrolls && p.scale > 0.95, `scale ${p.scale.toFixed(2)}`);
-  ok('portrait phone: touch buttons hidden under it', p.touchHidden);
+  ok('landscape phone: playfield is not upright', !(await ev('window.__asteroidsGameInstance.rotated')));
+  ok('landscape phone: start screen grows past the playfield', p.grown);
+  ok('landscape phone: start screen readable (scrolls rather than shrinks)', (p.fits || p.scrolls) && p.scale > 0.95, `scale ${p.scale.toFixed(2)}`);
+  ok('landscape phone: touch buttons hidden under it', p.touchHidden);
   const shown = await ev(`new Promise((done) => { window.__asteroidsGameInstance.startGame();
     setTimeout(() => done(getComputedStyle(document.getElementById('touch-controls')).visibility === 'visible'), 100); })`);
-  ok('portrait phone: touch buttons come back when the game starts', shown);
-  // A playfield limited by the width uses <main>'s side padding, lining up with the header
-  const edges = await ev(`(() => {
-    const f = document.getElementById('game-frame').getBoundingClientRect(), h = document.querySelector('header').getBoundingClientRect();
-    return { left: f.left - h.left, right: h.right - f.right };
-  })()`);
-  ok('portrait phone: playfield reaches the edges of the header', Math.abs(edges.left) <= 1 && Math.abs(edges.right) <= 1, JSON.stringify(edges));
+  ok('landscape phone: touch buttons come back when the game starts', shown);
 
   // The touch buttons follow the playfield when the layout changes without a window
   // resize event (as when entering fullscreen on some phones): here the header grows

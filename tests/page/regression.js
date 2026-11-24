@@ -18,6 +18,18 @@ window.addEventListener('load', () => setTimeout(() => {
     ok('Space behind Scores modal ignored', g.state === 'START');
     document.getElementById('screen-scores').classList.add('hidden');
 
+    // Opening the Hall of Fame pauses the game, and pause doesn't resume it behind it
+    g.startGame(); g.ship.invulnerable = 1e9;
+    document.getElementById('btn-scores').click();
+    ok('Hall of Fame pauses the game', g.state === 'PAUSED');
+    key('keydown', 'KeyP', 'p'); key('keyup', 'KeyP', 'p');
+    document.getElementById('btn-touch-pause').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    document.getElementById('btn-touch-pause').click();
+    ok('pause key and button do not resume behind the Hall of Fame', g.state === 'PAUSED');
+    document.getElementById('btn-scores-ok').click();
+    key('keydown', 'KeyP', 'p'); key('keyup', 'KeyP', 'p');
+    ok('after closing it, pause resumes', g.state === 'PLAYING');
+
     // Held keys are released on pause
     g.startGame();
     key('keydown', 'KeyW', 'w'); key('keydown', 'KeyA', 'a');

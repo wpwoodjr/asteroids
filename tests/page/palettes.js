@@ -22,12 +22,12 @@ window.addEventListener('load', () => setTimeout(() => {
     }
     ok('Classic is all white', ['rock', 'ship', 'saucer'].every((k) => THEMES[0][k] === '#ffffff'));
 
-    // Cycling updates the theme button's name and three dots
+    // Cycling updates the theme button's name and its ship, drawn in the ship color
     g.paletteChosen = true; // a picked palette stays put when a game starts
     g.setTheme(1);
-    const dots = [...document.querySelectorAll('#theme-indicator [data-part]')].map((d) => d.style.backgroundColor);
-    ok('theme button shows the palette name and its 3 colors',
-       document.getElementById('theme-name').textContent === 'Neon' && dots.length === 3 && new Set(dots).size === 3, dots.join(' | '));
+    const shipIcon = document.querySelector('#theme-indicator path').getAttribute('stroke');
+    ok('theme button shows the palette name and its ship color',
+       document.getElementById('theme-name').textContent === 'Neon' && shipIcon === THEMES[1].ship, shipIcon);
 
     // Drawing: record the stroke/fill color used for each kind of object
     g.startGame(); g.ufoSpawnTimer = 1e9;
@@ -89,9 +89,9 @@ window.addEventListener('load', () => setTimeout(() => {
     // Until the player picks a palette, it changes with the waves: Classic, then Neon at
     // wave 2 and Nebula from wave 3, with a hint under the banner at each switch
     const name = () => document.getElementById('theme-name').textContent;
-    g.paletteChosen = false; g.setTheme(2);
+    g.paletteChosen = false; g.paletteReached = 0; g.setTheme(2);
     g.startGame(); g.ufoSpawnTimer = 1e9;
-    ok('auto: each game starts in Classic, with no hint', name() === 'Classic' && g.paletteHint === '', name());
+    ok('auto: the first game starts in Classic, with no hint', name() === 'Classic' && g.paletteHint === '', name());
     g.createWave(2);
     ok('auto: Neon at wave 2, with a hint', name() === 'Neon' && /^NEON PALETTE - (PRESS C|TAP THE PALETTE BUTTON) TO CHANGE$/.test(g.paletteHint), g.paletteHint);
     g.render();
@@ -99,12 +99,29 @@ window.addEventListener('load', () => setTimeout(() => {
     ok('auto: Nebula at wave 3, with a hint', name() === 'Nebula' && g.paletteHint.startsWith('NEBULA PALETTE'), g.paletteHint);
     g.createWave(4);
     ok('auto: stays Nebula after that, with no hint', name() === 'Nebula' && g.paletteHint === '');
+
+    // The furthest palette reached stays for the next games, and is saved
+    g.paletteReached = 1; g.setTheme(0); g.persistSettings();
+    g.startGame();
+    ok('auto: after reaching Neon, the next game starts in Neon, with no hint', name() === 'Neon' && g.paletteHint === '', name());
+    ok('auto: Neon reached is saved', JSON.parse(localStorage.getItem('asteroids_settings')).paletteReached === 'Neon');
+    g.createWave(2);
+    ok('auto: still Neon at wave 2, with no hint', name() === 'Neon' && g.paletteHint === '');
+    g.setTheme(0); g.applySavedSettings();
+    ok('auto: on the next visit, Neon from the start', name() === 'Neon' && g.paletteReached === 1, name());
+    g.replay = { fake: true }; g.createWave(3); g.replay = null;
+    ok('auto: a replay that reaches Nebula switches to it but does not keep it', name() === 'Nebula' && g.paletteReached === 1);
+    g.createWave(3);
+    ok('auto: reaching Nebula in a game keeps it', g.paletteReached === 2 &&
+       JSON.parse(localStorage.getItem('asteroids_settings')).paletteReached === 'Nebula');
+    g.startGame();
+    ok('auto: and the next game starts in Nebula', name() === 'Nebula', name());
     g.createWave(2); g.cycleTheme();
     ok('picking a palette clears the hint', g.paletteChosen && g.paletteHint === '');
     const picked = name();
     g.startGame(); g.createWave(2); g.createWave(3);
     ok('picked: the palette no longer changes with the waves', name() === picked && g.paletteHint === '', name());
-    g.paletteChosen = false; g.setTheme(0);
+    g.paletteChosen = false; g.paletteReached = 0; g.setTheme(0); g.persistSettings();
   } catch (e) { out.push('ERROR ' + e.stack); }
   window.__testResults = out;
   window.__testDone = true;

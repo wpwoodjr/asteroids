@@ -71,8 +71,9 @@
        pixels (Chrome rounds border widths, so a border can't be lined up) */
     #game-frame { box-shadow: 0 0 0 2px #262626, 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
     /* A menu grown past the playfield (see setOverlayArea()) looks the same as one that
-       fits: its backdrop covers only the playfield, and the page shows around it */
-    .menu-expanded { background: transparent !important; }
+       fits: its backdrop covers only the playfield, and the page shows around it.
+       With no frame of its own it needs little padding, leaving more room to fit. */
+    .menu-expanded { background: transparent !important; padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
     .menu-expanded::before {
       content: ''; position: absolute; z-index: -1; border-radius: 0.5rem;
       left: var(--pf-left); top: var(--pf-top); width: var(--pf-width); height: var(--pf-height);
@@ -95,6 +96,14 @@
     #touch-controls.two-row #btn-touch-pause { grid-column: 1 / span 2; grid-row: 2; }
     #touch-controls.two-row #btn-touch-thrust { grid-column: 1; grid-row: 1; }
     #touch-controls.two-row #btn-touch-fire { grid-column: 2; grid-row: 1; }
+    /* ...with the large buttons of a wide screen, when they fit (see resize()) */
+    #touch-controls.big > div { gap: 0.5rem; }
+    #touch-controls.big :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust) { width: 72px; height: 72px; }
+    #touch-controls.big #btn-touch-fire { width: 80px; height: 80px; }
+    #touch-controls.big :is(#btn-touch-hyperspace, #btn-touch-pause) { width: 80px; height: 52px; }
+    #touch-controls.big :is(#btn-touch-hyperspace) { font-size: 12px; }
+    #touch-controls.big :is(#btn-touch-left, #btn-touch-right, #btn-touch-fire) span:last-child { font-size: 9px; }
+    #touch-controls.big #btn-touch-thrust span:last-child { font-size: 8px; }
     /* A menu screen enlarged past the playfield (see fitOverlay()) covers the touch
        buttons, which do nothing there anyway */
     body:has(.menu-expanded:not(.hidden)) #touch-controls { visibility: hidden; }
@@ -2045,38 +2054,55 @@
 
         // A playfield limited by the screen's width (a narrow screen) uses <main>'s side
         // padding too, so it lines up with the header and is a little bigger
-        // (decided with the touch buttons on one row, which leaves the playfield the most height)
+        // (decided with the touch buttons as they'll be: two rows beside an upright
+        // playfield, otherwise one row, which leaves the playfield the most height)
         const touch = document.getElementById('touch-controls');
         touch.style.transform = '';
         touch.classList.remove('two-row');
         main.classList.remove('snug');
 
         // On a narrow screen the playfield is shown upright (3:4) when that makes it
-        // clearly bigger, as on a phone held in portrait. See viewW.
+        // clearly bigger, as on a phone held in portrait. See viewW. An upright playfield
+        // always has two rows of touch buttons (so the hands sit lower on a tall device),
+        // so it's measured with them.
         const wide = fitFrame();
         targetAspect = this.height / this.width;
+        touch.classList.add('two-row');
         const upright = fitFrame();
+        touch.classList.remove('two-row');
         this.rotated = upright.w * upright.h > UPRIGHT_GAIN * wide.w * wide.h;
         targetAspect = this.viewW / this.viewH;
+        if (this.rotated) touch.classList.add('two-row');
 
         const roomy = fitFrame();
         const mainBox = main.getBoundingClientRect(), mainStyle = getComputedStyle(main);
         const tall = mainBox.height - parseFloat(mainStyle.paddingTop) - parseFloat(mainStyle.paddingBottom);
         if (roomy.ok && roomy.h < tall - 1) main.classList.add('snug');
 
-        // Touch buttons: Hyperspace and Pause go on a second row (under the rotate and
-        // thrust/fire buttons) only if that doesn't make the playfield smaller. The
-        // playfield may move up to make room.
-        touch.classList.add('two-row');
+        // Touch buttons beside a 4:3 playfield: Hyperspace and Pause go on a second row
+        // (under the rotate and thrust/fire buttons) only if that doesn't make the
+        // playfield smaller. The playfield may move up to make room.
         let fit = fitFrame();
-        const twoRowWidth = fit.w;
-        touch.classList.remove('two-row');
-        fit = fitFrame();
-        if (!fit.ok) return;
-        if (twoRowWidth >= fit.w - 0.5) {
+        if (!this.rotated) {
           touch.classList.add('two-row');
+          const twoRowWidth = fitFrame().w;
+          touch.classList.remove('two-row');
           fit = fitFrame();
+          if (twoRowWidth >= fit.w - 0.5) {
+            touch.classList.add('two-row');
+            fit = fitFrame();
+          }
         }
+        // Two rows have room across for the large buttons of a wide screen; use them
+        // when they don't make the playfield smaller either
+        touch.classList.remove('big');
+        if (touch.classList.contains('two-row') && fit.ok) {
+          touch.classList.add('big');
+          const big = fitFrame();
+          if (big.w >= fit.w - 0.5) fit = big;
+          else touch.classList.remove('big');
+        }
+        if (!fit.ok) return;
         const frameWidth = fit.w, frameHeight = fit.h;
 
         // The frame and the canvas inside it sit exactly on the screen's pixels.

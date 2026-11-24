@@ -108,10 +108,14 @@ export default async function ({ send, ev, base, sleep }) {
     const r = o.getBoundingClientRect(), cr = c.getBoundingClientRect();
     return { grown: r.height > frame.height + 50, scale: t === 'none' ? 1 : new DOMMatrix(t).a, scrolls: o.style.overflowY === 'auto',
       fits: cr.top >= r.top - 0.5 && cr.bottom <= r.bottom + 0.5,
+      placed: { off: [r.left - parseFloat(o.style.left), r.top - parseFloat(o.style.top)], onScreen: r.left >= 0 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5 },
       touchHidden: getComputedStyle(document.getElementById('touch-controls')).visibility === 'hidden' };
   })()`);
   ok('landscape phone: playfield is not upright', !(await ev('window.__asteroidsGameInstance.rotated')));
   ok('landscape phone: start screen grows past the playfield', p.grown);
+  // (a transform on the playfield's frame once made it land offset by the frame's position)
+  ok('landscape phone: grown start screen sits where it was placed, on screen',
+    Math.abs(p.placed.off[0]) < 0.5 && Math.abs(p.placed.off[1]) < 0.5 && p.placed.onScreen, JSON.stringify(p.placed));
   ok('landscape phone: start screen readable (scrolls rather than shrinks)', (p.fits || p.scrolls) && p.scale > 0.95, `scale ${p.scale.toFixed(2)}`);
   ok('landscape phone: touch buttons hidden under it', p.touchHidden);
   const shown = await ev(`new Promise((done) => { window.__asteroidsGameInstance.startGame();

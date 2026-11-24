@@ -70,6 +70,15 @@
        canvas fills the frame exactly and resize() can line both up with the screen's
        pixels (Chrome rounds border widths, so a border can't be lined up) */
     #game-frame { box-shadow: 0 0 0 2px #262626, 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+    /* A menu grown past the playfield (see setOverlayArea()) looks the same as one that
+       fits: its backdrop covers only the playfield, and the page shows around it */
+    .menu-expanded { background: transparent !important; }
+    .menu-expanded::before {
+      content: ''; position: absolute; z-index: -1; border-radius: 0.5rem;
+      left: var(--pf-left); top: var(--pf-top); width: var(--pf-width); height: var(--pf-height);
+      background: rgba(0, 0, 0, 0.5);
+    }
+    #screen-help.menu-expanded::before { background: rgba(0, 0, 0, 0.9); }
     .overlay-fit { transform-origin: center; }
     /* The start, pause, game over and Hall of Fame screens: light enough to see the
        rocks behind */
@@ -1973,14 +1982,17 @@
       setOverlayArea(overlay, area) {
         const st = overlay.style;
         if (!area) {
-          for (const k of ['position', 'left', 'top', 'width', 'height', 'border', 'borderRadius']) st[k] = '';
+          for (const k of ['position', 'left', 'top', 'width', 'height', 'borderRadius']) st[k] = '';
           overlay.classList.remove('menu-expanded');
           return;
         }
         Object.assign(st, { position: 'fixed', left: `${area.left}px`, top: `${area.top}px`,
-          width: `${area.width}px`, height: `${area.height}px`, border: '2px solid #262626', borderRadius: '0.5rem' });
-        // (Its usual see-through background lets the drifting rocks show; the touch
-        // buttons underneath are hidden while it's enlarged, see the CSS)
+          width: `${area.width}px`, height: `${area.height}px`, borderRadius: '0.5rem' });
+        // Where the playfield is inside it, for its backdrop (see .menu-expanded in the
+        // CSS); the touch buttons underneath are hidden while it's enlarged
+        const f = document.getElementById('game-frame').getBoundingClientRect();
+        for (const [k, v] of [['left', f.left - area.left], ['top', f.top - area.top], ['width', f.width], ['height', f.height]])
+          st.setProperty(`--pf-${k}`, `${v}px`);
         overlay.classList.add('menu-expanded');
       }
 
@@ -2080,10 +2092,13 @@
         const pixelsH = fit.byWidth ? Math.round(pixelsW / shape) : Math.floor((frameHeight - 2 * OUTLINE) * dpr);
         frame.style.width = `${pixelsW / dpr}px`;
         frame.style.height = `${pixelsH / dpr}px`;
-        frame.style.transform = '';
+        // Nudged with relative offsets, not a transform: a transform would make the
+        // menus' position:fixed (when they grow past the playfield) relative to the frame
+        frame.style.left = frame.style.top = '';
         const at = frame.getBoundingClientRect();
         const nudge = (v) => (Math.round(v * dpr) - v * dpr) / dpr;
-        frame.style.transform = `translate(${nudge(at.left)}px, ${nudge(at.top)}px)`;
+        frame.style.left = `${nudge(at.left)}px`;
+        frame.style.top = `${nudge(at.top)}px`;
 
         // Keep the touch buttons just under the playfield: when the playfield is limited
         // by width it doesn't reach the bottom of its area, so lift the buttons up to it

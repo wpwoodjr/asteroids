@@ -72,6 +72,16 @@ window.addEventListener('load', () => setTimeout(() => {
 
     ok('touch toggle removed', !document.getElementById('btn-touch-toggle'));
 
+    // The Hall of Fame and Help each close the other when opened
+    const shown = (id) => !document.getElementById(id).classList.contains('hidden');
+    g.state = 'START';
+    document.getElementById('btn-scores').click();
+    document.getElementById('btn-help').click();
+    ok('Help opened over the Hall of Fame closes it', shown('screen-help') && !shown('screen-scores'));
+    document.getElementById('btn-scores').click();
+    ok('Hall of Fame opened over Help closes it', shown('screen-scores') && !shown('screen-help'));
+    document.getElementById('btn-scores-ok').click();
+
     // Fills the whole screen, including beside a camera cutout in a fullscreen app
     ok('page may use the cutout area (viewport-fit=cover)',
        /viewport-fit=cover/.test(document.querySelector('meta[name=viewport]').content));

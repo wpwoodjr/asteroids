@@ -110,9 +110,17 @@
     #touch-controls.big :is(#btn-touch-hyperspace) { font-size: 12px; }
     #touch-controls.big :is(#btn-touch-left, #btn-touch-right, #btn-touch-fire) span:last-child { font-size: 9px; }
     #touch-controls.big #btn-touch-thrust span:last-child { font-size: 8px; }
+    /* Buttons at the sides (chosen by resize() when that makes the playfield bigger, as
+       on a landscape screen): each hand's buttons in a column beside the playfield,
+       placed by resize(). Left: rotate left, rotate right, Hyperspace; right: Fire,
+       Thrust, Pause, top to bottom. */
+    #touch-controls.sides { position: fixed; inset: 0; max-width: none; padding: 0; margin: 0; pointer-events: none; }
+    #touch-controls.sides > div { position: absolute; flex-direction: column; gap: 0.5rem; pointer-events: auto; }
+    #touch-controls.sides > div:last-child { flex-direction: column-reverse; }
     /* A menu screen enlarged past the playfield (see fitOverlay()) covers the touch
-       buttons, which do nothing there anyway */
-    body:has(.menu-expanded:not(.hidden)) #touch-controls { visibility: hidden; }
+       buttons below it, which do nothing there anyway (at the sides they stay in view:
+       the menu grows only between them) */
+    body:has(.menu-expanded:not(.hidden)) #touch-controls:not(.sides) { visibility: hidden; }
     /* During a replay the ship's buttons do nothing (Pause still works) */
     body.replaying #touch-controls button:not(#btn-touch-pause) { opacity: 0.35; }
     .font-arcade {
@@ -1989,13 +1997,20 @@
       }
 
       // The area a menu screen may grow to: between the header and the footer, across
-      // the play area
+      // the play area, or between the touch buttons when they're at the sides (they stay
+      // in view there)
       menuArea() {
         const header = document.querySelector('header').getBoundingClientRect();
         const footer = document.querySelector('footer').getBoundingClientRect();
         const main = document.querySelector('main').getBoundingClientRect();
+        const touch = document.getElementById('touch-controls');
+        let left = main.left, right = main.right;
+        if (touch.classList.contains('sides')) {
+          left = touch.children[0].getBoundingClientRect().right + 4;
+          right = touch.children[1].getBoundingClientRect().left - 4;
+        }
         const top = header.bottom + 4, bottom = footer.top - 4;
-        return { left: main.left, top, width: main.width, height: bottom - top };
+        return { left, top, width: right - left, height: bottom - top };
       }
 
       // Place an overlay over the given screen area, or back over the playfield (null)
@@ -2009,7 +2024,7 @@
         Object.assign(st, { position: 'fixed', left: `${area.left}px`, top: `${area.top}px`,
           width: `${area.width}px`, height: `${area.height}px`, borderRadius: '0.5rem' });
         // Where the playfield is inside it, for its backdrop (see .menu-expanded in the
-        // CSS); the touch buttons underneath are hidden while it's enlarged
+        // CSS); touch buttons below it are hidden while it's enlarged
         const f = document.getElementById('game-frame').getBoundingClientRect();
         for (const [k, v] of [['left', f.left - area.left], ['top', f.top - area.top], ['width', f.width], ['height', f.height]])
           st.setProperty(`--pf-${k}`, `${v}px`);
@@ -2048,29 +2063,53 @@
         const frame = document.getElementById('game-frame');
         if (!main || !frame) return;
 
-        // Largest playfield of the view's shape that fits in <main> (which has no padding:
-        // the page's side padding is the playfield's margin, so it lines up with the header)
+        // Largest playfield of the view's shape that fits in <main>. Its side padding is
+        // zero (the page's side padding is the playfield's margin, so it lines up with the
+        // header) unless the touch buttons are at the sides, when it makes room for them.
         let targetAspect = this.width / this.height;
         const fitFrame = () => {
-          const r = main.getBoundingClientRect();
+          const r = main.getBoundingClientRect(), st = getComputedStyle(main);
           // The view's shape is fitted inside the playfield's 2 px outline (OUTLINE each side)
-          const roomW = r.width - 2 * OUTLINE, roomH = r.height - 2 * OUTLINE;
+          const roomW = r.width - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight) - 2 * OUTLINE;
+          const roomH = r.height - 2 * OUTLINE;
           const byWidth = roomW / targetAspect <= roomH;
           const w = byWidth ? roomW : roomH * targetAspect, h = byWidth ? roomW / targetAspect : roomH;
           return { w: w + 2 * OUTLINE, h: h + 2 * OUTLINE, byWidth, ok: roomW > 0 && roomH > 0 };
         };
 
         const touch = document.getElementById('touch-controls');
+        const [leftHand, rightHand] = touch.children;
         touch.style.transform = '';
-        touch.classList.remove('two-row', 'big');
+        touch.classList.remove('two-row', 'big', 'sides');
+        main.style.paddingLeft = main.style.paddingRight = '';
+        for (const hand of [leftHand, rightHand]) hand.style.left = hand.style.top = '';
+
+        // A 4:3 playfield has its touch buttons below it on one row (which leaves it the
+        // most height) or, when that makes it bigger, in a column at each side, as on a
+        // landscape screen. <main>'s side padding makes room for the columns.
+        const sideRoom = () => Math.max(leftHand.offsetWidth, rightHand.offsetWidth) + 8;
+        const below = fitFrame();
+        touch.classList.add('sides');
+        main.style.paddingLeft = main.style.paddingRight = `${sideRoom()}px`;
+        const beside = fitFrame();
+        const columnFits = main.getBoundingClientRect().height >= Math.max(leftHand.offsetHeight, rightHand.offsetHeight);
+        const sides = beside.ok && columnFits && beside.w * beside.h > below.w * below.h;
+        // (for the diagnostics panel)
+        this.sidesGain = beside.ok && columnFits ? beside.w * beside.h / (below.w * below.h) : null;
+        if (!sides) {
+          touch.classList.remove('sides');
+          main.style.paddingLeft = main.style.paddingRight = '';
+        }
+        const wide = sides ? beside : below;
 
         // The playfield is shown upright (3:4) when that makes it bigger by area (by
-        // UPRIGHT_GAIN), as on a phone held in portrait. See viewW. Each shape is measured
-        // with the touch buttons as they'd be: an upright playfield always has two rows
-        // (so the hands sit lower on a tall device), a 4:3 one starts from one row,
-        // which leaves it the most height.
-        const wide = fitFrame();
+        // UPRIGHT_GAIN) than 4:3, as on a phone held in portrait. See viewW. An upright
+        // playfield always has its touch buttons below it on two rows (so the hands sit
+        // lower on a tall device), so it's measured with them.
         targetAspect = this.height / this.width;
+        touch.classList.remove('sides');
+        const sidePadding = main.style.paddingLeft;
+        main.style.paddingLeft = main.style.paddingRight = '';
         touch.classList.add('two-row');
         const upright = fitFrame();
         touch.classList.remove('two-row');
@@ -2078,12 +2117,17 @@
         this.uprightGain = upright.w * upright.h / (wide.w * wide.h); // (for the diagnostics panel)
         targetAspect = this.viewW / this.viewH;
         if (this.rotated) touch.classList.add('two-row');
+        const atSides = sides && !this.rotated;
+        if (atSides) {
+          touch.classList.add('sides');
+          main.style.paddingLeft = main.style.paddingRight = sidePadding;
+        }
 
-        // Touch buttons beside a 4:3 playfield: Hyperspace and Pause go on a second row
+        // Touch buttons below a 4:3 playfield: Hyperspace and Pause go on a second row
         // (under the rotate and thrust/fire buttons) only if that doesn't make the
         // playfield smaller. The playfield may move up to make room.
         let fit = fitFrame();
-        if (!this.rotated) {
+        if (!this.rotated && !atSides) {
           touch.classList.add('two-row');
           const twoRowWidth = fitFrame().w;
           touch.classList.remove('two-row');
@@ -2128,8 +2172,23 @@
         // Keep the touch buttons just under the playfield: when the playfield is limited
         // by width it doesn't reach the bottom of its area, so lift the buttons up to it
         // (the playfield itself stays where it is; the spare space ends up below them)
-        const gap = touch.getBoundingClientRect().top - frame.getBoundingClientRect().bottom - OUTLINE - 8;
-        if (gap > 0) touch.style.transform = `translateY(${-gap}px)`;
+        if (!atSides) {
+          const gap = touch.getBoundingClientRect().top - frame.getBoundingClientRect().bottom - OUTLINE - 8;
+          if (gap > 0) touch.style.transform = `translateY(${-gap}px)`;
+        } else {
+          // Buttons at the sides: each column next to the playfield, with its middle button
+          // (rotate right, Thrust) a third of the way up the window, kept between the
+          // header and the footer
+          const area = main.getBoundingClientRect(), f = frame.getBoundingClientRect();
+          const bottom = document.querySelector('footer').getBoundingClientRect().top - 4;
+          for (const hand of [leftHand, rightHand]) {
+            const middle = hand.children[1], handBox = hand.getBoundingClientRect(), mid = middle.getBoundingClientRect();
+            const toMiddle = mid.top + mid.height / 2 - handBox.top;
+            const top = Math.max(area.top, Math.min(bottom - handBox.height, innerHeight * 2 / 3 - toMiddle));
+            hand.style.top = `${Math.round(top)}px`;
+            hand.style.left = `${Math.round(hand === leftHand ? f.left - OUTLINE - 8 - handBox.width : f.right + OUTLINE + 8)}px`;
+          }
+        }
 
         // The header sits just above the playfield, as it does when there's no room to
         // spare: when there is, it moves down to it, which also keeps it clear of a camera
@@ -4119,6 +4178,14 @@
             const gain = g && g.uprightGain ? Math.round((g.uprightGain - 1) * 100) : NaN;
             return `playfield ${Math.round(f.width)}x${Math.round(f.height)} ${g && g.rotated ? '3:4' : '4:3'}, `
               + `upright ${gain >= 0 ? '+' : ''}${gain}% area vs 4:3 (goes upright above +${Math.round((UPRIGHT_GAIN - 1) * 100)}%)`;
+          })(),
+          (() => {
+            const g = window.__asteroidsGameInstance, t = document.getElementById('touch-controls');
+            const layout = t.classList.contains('sides') ? 'at the sides' : t.classList.contains('two-row') ? 'below, two rows' : 'below, one row';
+            const gain = g && g.sidesGain ? Math.round((g.sidesGain - 1) * 100) : null;
+            const why = gain === null ? 'sides: no room for the columns'
+              : `sides ${gain >= 0 ? '+' : ''}${gain}% 4:3 area vs below${g.rotated ? ' (upright wins anyway)' : ''}`;
+            return `buttons ${layout}, ${why}`;
           })(),
           `root font ${getComputedStyle(document.documentElement).fontSize}`
         ];

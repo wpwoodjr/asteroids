@@ -26,7 +26,10 @@ export default async function ({ send, ev, base, sleep }) {
         mode: h.classList.contains('wrap') ? 'two rows' : h.classList.contains('compact') ? 'compact' : 'full',
         upright: window.__asteroidsGameInstance.rotated,
         aspect: document.getElementById('game-frame').getBoundingClientRect().width / document.getElementById('game-frame').getBoundingClientRect().height,
-        buttonGap: document.getElementById('touch-controls').getBoundingClientRect().top - document.getElementById('game-frame').getBoundingClientRect().bottom - 2 // 2: the outline
+        buttonGap: document.getElementById('touch-controls').getBoundingClientRect().top - document.getElementById('game-frame').getBoundingClientRect().bottom - 2, // 2: the outline
+        sides: document.getElementById('touch-controls').classList.contains('sides'),
+        besideGaps: (() => { const f = document.getElementById('game-frame').getBoundingClientRect(), [l, r] = document.getElementById('touch-controls').children;
+          return [f.left - 2 - l.getBoundingClientRect().right, r.getBoundingClientRect().left - (f.right + 2)]; })()
       };
     })()`);
     ok(`${label}: header fits (${r.mode})`, r.headerFits);
@@ -35,7 +38,8 @@ export default async function ({ send, ev, base, sleep }) {
     ok(`${label}: page fits the screen`, r.pageFits);
     const shape = upright ? 3 / 4 : 4 / 3;
     ok(`${label}: playfield is ${upright ? 'upright, 3:4' : '4:3'}, not squashed`, r.upright === upright && Math.abs(r.aspect - shape) < 0.01, r.aspect.toFixed(3));
-    ok(`${label}: touch buttons sit just under the playfield`, r.buttonGap >= 0 && r.buttonGap <= 12, `${Math.round(r.buttonGap)} px gap`);
+    if (r.sides) ok(`${label}: touch buttons sit beside the playfield, clear of it`, r.besideGaps.every((g) => g >= 0), JSON.stringify(r.besideGaps.map(Math.round)));
+    else ok(`${label}: touch buttons sit just under the playfield`, r.buttonGap >= 0 && r.buttonGap <= 12, `${Math.round(r.buttonGap)} px gap`);
     for (const id of ['screen-start', 'screen-help', 'screen-game-over']) {
       const v = await ev(`new Promise((done) => {
         document.querySelectorAll('[id^=screen-]').forEach((o) => o.classList.add('hidden'));
@@ -97,7 +101,8 @@ export default async function ({ send, ev, base, sleep }) {
   ok('portrait phone: playfield reaches the edges of the header', Math.abs(edges.left) <= 1 && Math.abs(edges.right) <= 1, JSON.stringify(edges));
 
   // A short phone in landscape: the start screen doesn't fit the playfield, so it grows
-  // to cover the area between the header and footer (hiding the touch buttons).
+  // to cover the area between the header and footer. The touch buttons are at the sides
+  // here, so it grows only between them, and they stay in view.
   // Starting a game puts the buttons back.
   await send('Emulation.setDeviceMetricsOverride', { width: 790, height: 411, deviceScaleFactor: 2.625, mobile: true });
   await send('Page.navigate', { url: `${base}/asteroids.html` });
@@ -106,10 +111,12 @@ export default async function ({ send, ev, base, sleep }) {
     const o = document.getElementById('screen-start'), c = o.querySelector('.overlay-fit');
     const t = getComputedStyle(c).transform, frame = document.getElementById('game-frame').getBoundingClientRect();
     const r = o.getBoundingClientRect(), cr = c.getBoundingClientRect();
-    return { grown: r.height > frame.height + 50, scale: t === 'none' ? 1 : new DOMMatrix(t).a, scrolls: o.style.overflowY === 'auto',
+    return { grown: r.height > frame.height + 1, scale: t === 'none' ? 1 : new DOMMatrix(t).a, scrolls: o.style.overflowY === 'auto',
       fits: cr.top >= r.top - 0.5 && cr.bottom <= r.bottom + 0.5,
       placed: { off: [r.left - parseFloat(o.style.left), r.top - parseFloat(o.style.top)], onScreen: r.left >= 0 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5 },
-      touchHidden: getComputedStyle(document.getElementById('touch-controls')).visibility === 'hidden' };
+      touchShown: getComputedStyle(document.getElementById('touch-controls')).visibility === 'visible',
+      clearOfButtons: r.left >= document.getElementById('btn-touch-hyperspace').getBoundingClientRect().right
+        && r.right <= document.getElementById('btn-touch-fire').getBoundingClientRect().left };
   })()`);
   ok('landscape phone: playfield is not upright', !(await ev('window.__asteroidsGameInstance.rotated')));
   ok('landscape phone: start screen grows past the playfield', p.grown);
@@ -119,10 +126,27 @@ export default async function ({ send, ev, base, sleep }) {
   // (below 55% the text is too small to read, so it scrolls at full size instead)
   ok('landscape phone: start screen readable (fits at 55% or more, or scrolls)',
     p.scrolls ? p.scale > 0.95 : p.fits && p.scale >= 0.55, `scale ${p.scale.toFixed(2)}`);
-  ok('landscape phone: touch buttons hidden under it', p.touchHidden);
-  const shown = await ev(`new Promise((done) => { window.__asteroidsGameInstance.startGame();
-    setTimeout(() => done(getComputedStyle(document.getElementById('touch-controls')).visibility === 'visible'), 100); })`);
-  ok('landscape phone: touch buttons come back when the game starts', shown);
+  ok('landscape phone: side touch buttons stay in view beside it', p.touchShown && p.clearOfButtons);
+  await ev('window.__asteroidsGameInstance.startGame()');
+
+  // On a landscape phone the touch buttons go to the sides, which makes the playfield
+  // much bigger than with them below (310x232 before). Each hand's buttons stand in a
+  // column (left: rotate left, rotate right, Hyperspace; right: Fire, Thrust, Pause, top
+  // to bottom), with the middle one a third of the way up the window.
+  const sd = await ev(`(() => {
+    const box = (id) => document.getElementById(id).getBoundingClientRect(), f = box('game-frame');
+    const mid = (id) => { const b = box(id); return b.top + b.height / 2; };
+    return { sides: document.getElementById('touch-controls').classList.contains('sides'), frame: [f.width, f.height],
+      leftOrder: box('btn-touch-left').top < box('btn-touch-right').top && box('btn-touch-right').top < box('btn-touch-hyperspace').top,
+      rightOrder: box('btn-touch-fire').top < box('btn-touch-thrust').top && box('btn-touch-thrust').top < box('btn-touch-pause').top,
+      middles: [mid('btn-touch-right'), mid('btn-touch-thrust')], third: innerHeight * 2 / 3,
+      clear: box('btn-touch-hyperspace').right <= f.left - 2 && box('btn-touch-fire').left >= f.right + 2 };
+  })()`);
+  ok('landscape phone: touch buttons at the sides', sd.sides);
+  ok('landscape phone: playfield much bigger with them there', sd.frame[0] * sd.frame[1] > 1.5 * 310 * 232, sd.frame.map(Math.round).join('x'));
+  ok('landscape phone: side buttons in order, top to bottom', sd.leftOrder && sd.rightOrder);
+  ok('landscape phone: rotate right and Thrust a third of the way up', sd.middles.every((m) => Math.abs(m - sd.third) <= 1), JSON.stringify(sd));
+  ok('landscape phone: side buttons clear of the playfield', sd.clear);
 
   // The touch buttons follow the playfield when the layout changes without a window
   // resize event (as when entering fullscreen on some phones): here the header grows

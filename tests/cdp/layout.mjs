@@ -197,7 +197,7 @@ export default async function ({ send, ev, base, sleep }) {
   ok('outer screen: same layout after going taller and back', before === after, `${before} -> ${after}`);
 
   // Fullscreen on the outer screen, with a camera cutout reported as a 75 px safe area at
-  // the top: the header moves down, centered between the cutout and the playfield
+  // the top: the header moves down to sit just above the playfield, clear of the cutout
   await send('Emulation.setDeviceMetricsOverride', { width: 443, height: 961, deviceScaleFactor: 2.4375, mobile: true });
   await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 75, left: 0, right: 0, bottom: 0 } });
   await send('Page.navigate', { url: `${base}/asteroids.html` });
@@ -205,7 +205,7 @@ export default async function ({ send, ev, base, sleep }) {
   const hd = await ev(`(() => { const h = document.querySelector('header').getBoundingClientRect(), f = document.getElementById('game-frame').getBoundingClientRect();
     return { top: h.top, bottom: h.bottom, frameTop: f.top - 2 }; })()`);
   ok('camera cutout: header is below it and above the playfield', hd.top >= 75 && hd.bottom <= hd.frameTop, JSON.stringify(hd));
-  ok('camera cutout: header is centered between them', Math.abs((hd.top + hd.bottom) / 2 - (75 + hd.frameTop) / 2) <= 1, JSON.stringify(hd));
+  ok('camera cutout: header sits just above the playfield', Math.abs(hd.frameTop - 4 - hd.bottom) <= 1, JSON.stringify(hd));
   await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 0 } });
   return out;
 }

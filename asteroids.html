@@ -51,7 +51,7 @@
     @media (min-width: 640px) {
       body { padding-top: 1rem; }
     }
-    /* Probe for reading the safe-area insets (resize() and the diagnostics panel) */
+    /* Probe for reading the safe-area insets in the diagnostics panel */
     #safe-area-probe {
       position: fixed; visibility: hidden; pointer-events: none;
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -67,7 +67,7 @@
     /* The playfield's outline is a ring drawn outside it rather than a border, so the
        canvas fills the frame exactly and resize() can line both up with the screen's
        pixels (Chrome rounds border widths, so a border can't be lined up) */
-    #game-frame { box-shadow: 0 0 0 2px #262626, 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+    #game-frame { box-shadow: 0 0 0 2px #404040, 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
     /* A menu grown past the playfield (see setOverlayArea()) looks the same as one that
        fits: its backdrop covers only the playfield, and the page shows around it.
        With no frame of its own it needs little padding, leaving more room to fit. */
@@ -2131,14 +2131,12 @@
         const gap = touch.getBoundingClientRect().top - frame.getBoundingClientRect().bottom - OUTLINE - 8;
         if (gap > 0) touch.style.transform = `translateY(${-gap}px)`;
 
-        // When there's room above the playfield, the header sits halfway between it and
-        // the top of the window, or the bottom of a camera cutout there (the safe area,
-        // reported in fullscreen), so the cutout doesn't hide it
+        // The header sits just above the playfield, as it does when there's no room to
+        // spare: when there is, it moves down to it, which also keeps it clear of a camera
+        // cutout at the top of the screen
         const header = document.querySelector('header');
         header.style.transform = '';
-        const head = header.getBoundingClientRect(), above = frame.getBoundingClientRect().top - OUTLINE;
-        const cutout = Math.min(parseFloat(getComputedStyle(document.getElementById('safe-area-probe')).paddingTop) || 0, above - head.height);
-        const down = Math.round((cutout + above) / 2 - (head.top + head.bottom) / 2);
+        const down = Math.round(frame.getBoundingClientRect().top - OUTLINE - 4 - header.getBoundingClientRect().bottom);
         if (down > 0) header.style.transform = `translateY(${down}px)`;
 
         // One canvas pixel per screen pixel, plus a spare pixel on every side that the

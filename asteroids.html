@@ -58,12 +58,27 @@
     }
     /* When the header or footer doesn't fit on one line (larger display scale or zoom),
        fitChrome() adds .compact: header buttons drop their text labels, and the footer
-       shows its short line instead of the controls list */
+       shows its short line instead of the controls list (before that, the footer tries
+       dropping its "ASTEROIDS": .no-name) */
     header.compact .btn-label { display: none !important; }
     /* Last resort on very narrow screens: let the header wrap onto a second row */
-    header.wrap, header.wrap > div { flex-wrap: wrap; justify-content: center; row-gap: 0.375rem; }
+    header.wrap, header.wrap > div, header.wrap .settings-group { flex-wrap: wrap; justify-content: center; row-gap: 0.375rem; }
+    /* With the touch buttons at the sides, the header may split into the side areas
+       above them (placed by resize()): the logo and the first settings group on the
+       left, the second group on the right. The page's top padding shrinks too. */
+    header.side { position: fixed; top: 0; left: 0; width: 0; height: 0; padding: 0; margin: 0; }
+    header.side > div:first-child, header.side .settings-group { position: absolute; }
+    header.side > div:last-child { display: contents; }
+    header.side #brand-logo ~ span { display: none !important; }
+    header.side #brand-logo { font-size: 11px; } /* no wider than the settings below it */
+    body.sides { padding-top: 0.5rem; }
+    /* The footer goes when that makes the playfield bigger (see resize()); the bottom
+       then keeps clear of a gesture-bar strip */
+    body.no-footer footer { display: none; }
+    body.no-footer { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
     footer.compact .footer-long { display: none !important; }
     footer.compact .footer-short { display: inline !important; }
+    footer.no-name .footer-name { display: none; }
     /* The playfield's outline is a ring drawn outside it rather than a border, so the
        canvas fills the frame exactly and resize() can line both up with the screen's
        pixels (Chrome rounds border widths, so a border can't be lined up) */
@@ -117,6 +132,14 @@
     #touch-controls.sides { position: fixed; inset: 0; max-width: none; padding: 0; margin: 0; pointer-events: none; }
     #touch-controls.sides > div { position: absolute; flex-direction: column; gap: 0.5rem; pointer-events: auto; }
     #touch-controls.sides > div:last-child { flex-direction: column-reverse; }
+    /* The small buttons of a narrow screen, for side columns on a short screen where the
+       large ones don't fit (see resize()) */
+    #touch-controls.small :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust) { width: 52px; height: 52px; }
+    #touch-controls.small #btn-touch-fire { width: 60px; height: 60px; }
+    #touch-controls.small :is(#btn-touch-hyperspace, #btn-touch-pause) { width: 56px; height: 48px; }
+    #touch-controls.small #btn-touch-hyperspace { font-size: 9px; }
+    #touch-controls.small :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust, #btn-touch-fire) span:last-child { font-size: 7px; }
+    #touch-controls.small > div { gap: 0.25rem; }
     /* A menu screen enlarged past the playfield (see fitOverlay()) covers the touch
        buttons below it, which do nothing there anyway (at the sides they stay in view:
        the menu grows only between them) */
@@ -153,8 +176,10 @@
       <span class="hidden lg:inline-block px-2 py-0.5 rounded text-[10px] border border-neutral-700 text-neutral-400">ARCADE VECTOR</span>
     </div>
 
-    <!-- Quick action buttons -->
+    <!-- Quick action buttons, in two groups (resize() puts one at each side of the
+         playfield when the touch buttons are at the sides) -->
     <div class="flex items-center gap-2">
+      <div class="settings-group flex items-center gap-2">
       <button id="btn-theme" class="whitespace-nowrap px-2.5 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition flex items-center gap-1.5 text-xs" title="Change Vector Color Theme">
         <!-- The ship, in the palette's ship color -->
         <svg id="theme-indicator" width="17" height="12" viewBox="-13 -10 28 20" aria-hidden="true">
@@ -174,6 +199,8 @@
         🪐 <span class="btn-label hidden sm:inline">Gravity:</span> <span id="gravity-status" class="text-neutral-500 font-bold">OFF</span>
       </button>
 
+      </div>
+      <div class="settings-group flex items-center gap-2">
       <button id="btn-scores" class="whitespace-nowrap px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="View Arcade Leaderboard">
         🏆 <span class="btn-label hidden sm:inline">Scores</span>
       </button>
@@ -185,6 +212,7 @@
       <button id="btn-help" class="whitespace-nowrap px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs" title="View Controls & Help">
         ?<span class="btn-label"> Help</span>
       </button>
+    </div>
     </div>
   </header>
 
@@ -268,6 +296,13 @@
           </button>
           <button id="btn-restart-from-pause" class="font-arcade py-2 px-4 border border-neutral-600 text-neutral-300 text-xs rounded hover:border-neutral-400 hover:text-white transition">
             RESTART (R)
+          </button>
+          <!-- Layout settings (see resize()): each cycles through its choices -->
+          <button id="btn-button-size" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Touch button size: Auto, Large or Small">
+            BUTTONS: AUTO
+          </button>
+          <button id="btn-view-shape" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Playfield shape: Auto, Landscape (4:3) or Portrait (3:4)">
+            SHAPE: AUTO
           </button>
         </div>
         </div>
@@ -441,10 +476,10 @@
   </div>
 
   <!-- Bottom Legend / Status -->
-  <footer class="w-full max-w-7xl text-center py-1 text-[11px] text-neutral-500 font-mono flex items-center justify-between px-3">
+  <footer class="w-full max-w-7xl text-center py-1 text-[11px] text-neutral-500 font-mono flex items-center justify-between gap-3 px-3">
     <span class="footer-long hidden sm:inline whitespace-nowrap">CONTROLS: [A/D] Turn &nbsp; [W] Thrust &nbsp; [SPACE] Fire &nbsp; [S/SHIFT] Hyperspace &nbsp; [G] Gravity &nbsp; [P] Pause</span>
     <span class="footer-short sm:hidden text-neutral-400">CLASSIC ARCADE VECTOR</span>
-    <span>ASTEROIDS</span>
+    <span class="footer-name">ASTEROIDS</span>
   </footer>
 
   <script>
@@ -956,6 +991,11 @@
     const GAME_OVER_DELAY = 3;
     const MENU_GROW_BELOW = 0.8; // a menu screen grows past the playfield rather than shrink below this
     const UPRIGHT_GAIN = 1.05; // show the playfield upright when that makes its area this much bigger
+    const SMALL_GAIN = 1.1; // use the small touch buttons when that makes the playfield's area this much bigger
+    const SIDES_LOSS = 0.95; // touch buttons go at the sides unless below makes the playfield's area bigger than this allows
+    // The player's layout choices (pause menu); 'auto' leaves them to resize()
+    const BUTTON_SIZES = ['auto', 'large', 'small'];
+    const VIEW_SHAPES = ['auto', 'landscape', 'portrait'];
     const OUTLINE = 2; // the playfield's outline, in CSS px (drawn outside #game-frame; see its CSS)
     const MENU_FPS = 30; // frame rate behind the start and game over screens
 
@@ -1757,6 +1797,8 @@
         this.scaleX = 1;
         this.scaleY = 1;
         this.rotated = false; // shown upright on narrow screens (see viewW)
+        this.buttonSize = 'auto'; // the player's choices, from the pause menu (see resize())
+        this.viewShape = 'auto';
 
         // Game State
         this.state = 'START';
@@ -1926,6 +1968,10 @@
         document.getElementById('btn-start-game').addEventListener('click', () => this.startGame());
         document.getElementById('btn-resume-game').addEventListener('click', () => this.togglePause());
         document.getElementById('btn-restart-from-pause').addEventListener('click', () => this.startGame());
+        document.getElementById('btn-button-size').addEventListener('click', () =>
+          this.setLayoutChoice('buttonSize', BUTTON_SIZES[(BUTTON_SIZES.indexOf(this.buttonSize) + 1) % BUTTON_SIZES.length]));
+        document.getElementById('btn-view-shape').addEventListener('click', () =>
+          this.setLayoutChoice('viewShape', VIEW_SHAPES[(VIEW_SHAPES.indexOf(this.viewShape) + 1) % VIEW_SHAPES.length]));
         document.getElementById('btn-play-again').addEventListener('click', () => this.startGame());
 
         document.getElementById('btn-replay-last').addEventListener('click', () => this.startReplay(this.lastGame, 'LAST GAME'));
@@ -1953,11 +1999,21 @@
       // doesn't fit, let it wrap onto a second row
       fitChrome() {
         const header = document.querySelector('header');
-        header.classList.remove('wrap');
-        for (const el of [header, document.querySelector('footer')]) {
-          el.classList.remove('compact');
-          if (el.scrollWidth > el.clientWidth + 1) el.classList.add('compact');
-        }
+        header.classList.remove('wrap', 'side');
+        // (the footer is measured even while it's hidden, ready for when it's back)
+        const noFooter = document.body.classList.contains('no-footer');
+        document.body.classList.remove('no-footer');
+        const footer = document.querySelector('footer');
+        const overflows = (el) => el.scrollWidth > el.clientWidth + 1;
+        header.classList.remove('compact');
+        if (overflows(header)) header.classList.add('compact');
+        // The footer drops its "ASTEROIDS" first (the logo says it), then shows the short
+        // line instead of the controls list
+        footer.classList.remove('compact', 'no-name');
+        if (overflows(footer)) footer.classList.add('no-name');
+        if (overflows(footer)) footer.classList.replace('no-name', 'compact');
+        if (overflows(footer)) footer.classList.add('no-name');
+        document.body.classList.toggle('no-footer', noFooter);
         if (header.scrollWidth > header.clientWidth + 1) header.classList.add('wrap');
       }
 
@@ -2001,7 +2057,6 @@
       // in view there)
       menuArea() {
         const header = document.querySelector('header').getBoundingClientRect();
-        const footer = document.querySelector('footer').getBoundingClientRect();
         const main = document.querySelector('main').getBoundingClientRect();
         const touch = document.getElementById('touch-controls');
         let left = main.left, right = main.right;
@@ -2009,7 +2064,8 @@
           left = touch.children[0].getBoundingClientRect().right + 4;
           right = touch.children[1].getBoundingClientRect().left - 4;
         }
-        const top = header.bottom + 4, bottom = footer.top - 4;
+        const top = document.querySelector('header').classList.contains('side') ? main.top : header.bottom + 4;
+        const bottom = main.bottom;
         return { left, top, width: right - left, height: bottom - top };
       }
 
@@ -2079,49 +2135,118 @@
 
         const touch = document.getElementById('touch-controls');
         const [leftHand, rightHand] = touch.children;
+        const header = document.querySelector('header');
+        const logo = header.children[0], [settingsLeft, settingsRight] = header.querySelectorAll('.settings-group');
         touch.style.transform = '';
-        touch.classList.remove('two-row', 'big', 'sides');
-        main.style.paddingLeft = main.style.paddingRight = '';
-        for (const hand of [leftHand, rightHand]) hand.style.left = hand.style.top = '';
+        touch.classList.remove('two-row', 'big', 'small');
+        for (const el of [leftHand, rightHand, logo, settingsLeft, settingsRight]) el.style.left = el.style.top = '';
+
+        // Lays the page out with the touch buttons below the playfield, or in a column at
+        // each side of it, optionally with the header split into the side areas above
+        // them. <main>'s side padding makes room for whatever is at the sides.
+        const setSides = (on, splitHeader = false, small = this.buttonSize === 'small') => {
+          touch.classList.toggle('sides', on);
+          touch.classList.toggle('small', small);
+          document.body.classList.toggle('sides', on);
+          if (on && splitHeader) header.classList.add('side', 'compact');
+          else this.fitChrome();
+          const beside = !on ? [] : splitHeader ? [leftHand, rightHand, logo, settingsLeft, settingsRight] : [leftHand, rightHand];
+          const room = beside.length ? Math.max(...beside.map((el) => el.offsetWidth)) + 8 : 0;
+          main.style.paddingLeft = main.style.paddingRight = room ? `${room}px` : '';
+        };
+        // Whether each side's things fit, one above the other, in the play area's height
+        const sidesFit = (splitHeader) => {
+          const height = main.getBoundingClientRect().height;
+          const left = leftHand.offsetHeight + (splitHeader ? logo.offsetHeight + 6 + settingsLeft.offsetHeight + 8 : 0);
+          const right = rightHand.offsetHeight + (splitHeader ? settingsRight.offsetHeight + 8 : 0);
+          return Math.max(left, right) <= height;
+        };
 
         // A 4:3 playfield has its touch buttons below it on one row (which leaves it the
-        // most height) or, when that makes it bigger, in a column at each side, as on a
-        // landscape screen. <main>'s side padding makes room for the columns.
-        const sideRoom = () => Math.max(leftHand.offsetWidth, rightHand.offsetWidth) + 8;
-        const below = fitFrame();
-        touch.classList.add('sides');
-        main.style.paddingLeft = main.style.paddingRight = `${sideRoom()}px`;
-        const beside = fitFrame();
-        const columnFits = main.getBoundingClientRect().height >= Math.max(leftHand.offsetHeight, rightHand.offsetHeight);
-        const sides = beside.ok && columnFits && beside.w * beside.h > below.w * below.h;
-        // (for the diagnostics panel)
-        this.sidesGain = beside.ok && columnFits ? beside.w * beside.h / (below.w * below.h) : null;
-        if (!sides) {
-          touch.classList.remove('sides');
-          main.style.paddingLeft = main.style.paddingRight = '';
-        }
-        const wide = sides ? beside : below;
+        // most height) or at the sides, as on a landscape screen; the header then moves
+        // into the side areas too, when that fits and makes the playfield bigger. The
+        // small buttons are used only when they make the playfield bigger by SMALL_GAIN
+        // than the best layout with the large ones, as on a screen too short for columns
+        // of the large buttons beside the header.
+        // Every layout is measured with the footer and without: it goes when that makes
+        // the playfield bigger (by 1% or more, so not for a rounding difference, nor when
+        // the width is what limits the playfield).
+        const area = (f) => f.w * f.h;
+        const setFooter = (hide) => document.body.classList.toggle('no-footer', hide);
+        const withFooter = (measure) => {
+          setFooter(false);
+          const kept = measure();
+          setFooter(true);
+          const hidden = measure();
+          // (bare: the area without the footer, for comparing the button sizes)
+          const bare = hidden ? area(hidden) : 0;
+          if (hidden && (!kept || area(hidden) >= 1.01 * area(kept))) return { ...hidden, noFooter: true, bare };
+          return kept && { ...kept, noFooter: false, bare };
+        };
+        const bestSides = (small) => {
+          let best = null;
+          for (const split of [false, true]) {
+            setSides(true, split, small);
+            const f = withFooter(() => { const f = fitFrame(); return f.ok && sidesFit(split) ? f : null; });
+            if (f && (!best || area(f) > area(best))) best = { ...f, split, small, bare: Math.max(f.bare, best ? best.bare : 0) };
+            else if (f) best.bare = Math.max(best.bare, f.bare);
+          }
+          return best;
+        };
+        // The best layout for a playfield of the given shape: buttons below it (two rows
+        // for an upright one, so the hands sit lower on a tall device) or at the sides.
+        // (The button sizes are compared without the footer: the large buttons come before
+        // the footer, so they don't give way to keep it)
+        // Each button size is tried below and at the sides; the sides win unless below
+        // makes the playfield clearly bigger (by more than SIDES_LOSS allows), as the
+        // buttons at the sides leave the playfield centred with the hands either side of
+        // it. The player's Buttons choice, if not Auto, then decides the size.
+        // Every layout tried, for the diagnostics panel's table
+        const tried = this.layoutsTried = [];
+        const bestLayout = (aspect, twoRows) => {
+          targetAspect = aspect;
+          const forSize = (small) => {
+            setSides(false, false, small);
+            touch.classList.toggle('two-row', twoRows);
+            const row = (f, where, header) => (tried.push({ shape: twoRows ? '3:4' : '4:3', small, where, header, ...f }), tried[tried.length - 1]);
+            const below = { ...withFooter(fitFrame), small, sides: false };
+            below.row = row(below, 'below', 'top');
+            touch.classList.remove('two-row');
+            const side = bestSides(small);
+            if (side) side.row = row(side, 'sides', side.split ? 'sides' : 'top');
+            else row({ w: 0, h: 0 }, 'sides', 'no room');
+            const sidesGain = side ? area(side) / area(below) : null;
+            return { ...(side && sidesGain >= SIDES_LOSS ? { ...side, sides: true } : below), sidesGain };
+          };
+          const large = forSize(false), small = forSize(true);
+          const smallGain = large && small ? small.bare / large.bare : null;
+          // (both sizes are measured, for the diagnostics panel, even when the player chose one)
+          const best = this.buttonSize === 'large' ? large : this.buttonSize === 'small' ? small
+            : smallGain >= SMALL_GAIN ? small : large;
+          return { ...best, twoRows, smallGain };
+        };
+        const wide = bestLayout(this.width / this.height, false);
 
         // The playfield is shown upright (3:4) when that makes it bigger by area (by
-        // UPRIGHT_GAIN) than 4:3, as on a phone held in portrait. See viewW. An upright
-        // playfield always has its touch buttons below it on two rows (so the hands sit
-        // lower on a tall device), so it's measured with them.
-        targetAspect = this.height / this.width;
-        touch.classList.remove('sides');
-        const sidePadding = main.style.paddingLeft;
-        main.style.paddingLeft = main.style.paddingRight = '';
-        touch.classList.add('two-row');
-        const upright = fitFrame();
-        touch.classList.remove('two-row');
-        this.rotated = upright.w * upright.h > UPRIGHT_GAIN * wide.w * wide.h;
-        this.uprightGain = upright.w * upright.h / (wide.w * wide.h); // (for the diagnostics panel)
+        // UPRIGHT_GAIN) than 4:3, as on a phone held in portrait. See viewW. The player
+        // can choose the shape instead (Shape in the pause menu), and the button size
+        // (Buttons: Large never uses the small ones; Small always does, and never the
+        // big ones).
+        const upright = bestLayout(this.height / this.width, true);
+        this.rotated = this.viewShape === 'auto' ? area(upright) > UPRIGHT_GAIN * area(wide) : this.viewShape === 'portrait';
+        const chosen = this.rotated ? upright : wide;
+        if (chosen.row) chosen.row.chosen = true;
+        // (what the sides and the small buttons gained, for checking the rules)
+        this.sidesGain = chosen.sidesGain;
+        this.smallGain = chosen.smallGain;
         targetAspect = this.viewW / this.viewH;
-        if (this.rotated) touch.classList.add('two-row');
-        const atSides = sides && !this.rotated;
-        if (atSides) {
-          touch.classList.add('sides');
-          main.style.paddingLeft = main.style.paddingRight = sidePadding;
-        }
+        const atSides = chosen.sides;
+        this.splitHeader = atSides && chosen.split;
+        this.smallButtons = chosen.small;
+        setSides(atSides, this.splitHeader, this.smallButtons);
+        if (!atSides && this.rotated) touch.classList.add('two-row');
+        this.noFooter = chosen.noFooter;
+        setFooter(this.noFooter);
 
         // Touch buttons below a 4:3 playfield: Hyperspace and Pause go on a second row
         // (under the rotate and thrust/fire buttons) only if that doesn't make the
@@ -2139,7 +2264,7 @@
         }
         // Two rows have room across for the large buttons of a wide screen; use them
         // when they don't make the playfield smaller either
-        if (touch.classList.contains('two-row') && fit.ok) {
+        if (touch.classList.contains('two-row') && fit.ok && !this.smallButtons) {
           touch.classList.add('big');
           const big = fitFrame();
           if (big.w >= fit.w - 0.5) fit = big;
@@ -2177,26 +2302,39 @@
           if (gap > 0) touch.style.transform = `translateY(${-gap}px)`;
         } else {
           // Buttons at the sides: each column next to the playfield, with its middle button
-          // (rotate right, Thrust) a third of the way up the window, kept between the
-          // header and the footer
-          const area = main.getBoundingClientRect(), f = frame.getBoundingClientRect();
-          const bottom = document.querySelector('footer').getBoundingClientRect().top - 4;
+          // (rotate right, Thrust) halfway up the window, kept between the
+          // header (or the header's blocks at the top of the side areas) and the bottom of
+          // the play area
+          const room = main.getBoundingClientRect(), f = frame.getBoundingClientRect();
+          const leftEdge = f.left - OUTLINE - 8, rightEdge = f.right + OUTLINE + 8;
+          const tops = new Map([[leftHand, room.top], [rightHand, room.top]]);
+          if (this.splitHeader) {
+            // The logo and first settings group above the left column, against the
+            // playfield; the second group level with the first, above the right column
+            const place = (el, left, top) => { el.style.left = `${Math.round(left)}px`; el.style.top = `${Math.round(top)}px`; };
+            place(logo, leftEdge - logo.offsetWidth, room.top);
+            const row = room.top + logo.offsetHeight + 6;
+            place(settingsLeft, leftEdge - settingsLeft.offsetWidth, row);
+            place(settingsRight, rightEdge, row);
+            tops.set(leftHand, row + settingsLeft.offsetHeight + 8);
+            tops.set(rightHand, row + settingsRight.offsetHeight + 8);
+          }
+          const bottom = room.bottom;
           for (const hand of [leftHand, rightHand]) {
             const middle = hand.children[1], handBox = hand.getBoundingClientRect(), mid = middle.getBoundingClientRect();
             const toMiddle = mid.top + mid.height / 2 - handBox.top;
-            const top = Math.max(area.top, Math.min(bottom - handBox.height, innerHeight * 2 / 3 - toMiddle));
+            const top = Math.max(tops.get(hand), Math.min(bottom - handBox.height, innerHeight / 2 - toMiddle));
             hand.style.top = `${Math.round(top)}px`;
-            hand.style.left = `${Math.round(hand === leftHand ? f.left - OUTLINE - 8 - handBox.width : f.right + OUTLINE + 8)}px`;
+            hand.style.left = `${Math.round(hand === leftHand ? leftEdge - handBox.width : rightEdge)}px`;
           }
         }
 
         // The header sits just above the playfield, as it does when there's no room to
         // spare: when there is, it moves down to it, which also keeps it clear of a camera
         // cutout at the top of the screen
-        const header = document.querySelector('header');
         header.style.transform = '';
         const down = Math.round(frame.getBoundingClientRect().top - OUTLINE - 4 - header.getBoundingClientRect().bottom);
-        if (down > 0) header.style.transform = `translateY(${down}px)`;
+        if (down > 0 && !this.splitHeader) header.style.transform = `translateY(${down}px)`;
 
         // One canvas pixel per screen pixel, plus a spare pixel on every side that the
         // frame crops off: the browser blends a canvas's outermost pixels with what's
@@ -2219,6 +2357,7 @@
 
         // Resizing the canvas clears it, so draw it again
         this.requestRender();
+        window.dispatchEvent(new Event('asteroids-layout')); // (the diagnostics panel updates)
       }
 
       // The Fullscreen button/F key only make sense when the Fullscreen API is supported
@@ -2264,6 +2403,23 @@
         if (Number.isInteger(saved.gravity) && saved.gravity >= 0 && saved.gravity < GRAVITY_LEVELS.length) {
           this.setGravityLevel(saved.gravity, false);
         }
+        if (BUTTON_SIZES.includes(saved.buttonSize)) this.buttonSize = saved.buttonSize;
+        if (VIEW_SHAPES.includes(saved.viewShape)) this.viewShape = saved.viewShape;
+        this.showLayoutChoices();
+      }
+
+      // The pause menu's touch button size and playfield shape: lay out again with the
+      // new choice, and remember it
+      setLayoutChoice(key, value) {
+        this[key] = value;
+        this.showLayoutChoices();
+        this.persistSettings();
+        this.resize();
+      }
+
+      showLayoutChoices() {
+        document.getElementById('btn-button-size').textContent = `BUTTONS: ${this.buttonSize.toUpperCase()}`;
+        document.getElementById('btn-view-shape').textContent = `SHAPE: ${this.viewShape.toUpperCase()}`;
       }
 
       persistSettings() {
@@ -2272,7 +2428,9 @@
           paletteReached: !this.paletteChosen && this.paletteReached > 0 ? AUTO_PALETTES[this.paletteReached] : undefined,
           muted: this.sound.muted,
           // A replay plays at the gravity it was recorded with; keep the player's own
-          gravity: this.replay ? this.replay.gravity : this.gravityLevel
+          gravity: this.replay ? this.replay.gravity : this.gravityLevel,
+          buttonSize: this.buttonSize !== 'auto' ? this.buttonSize : undefined,
+          viewShape: this.viewShape !== 'auto' ? this.viewShape : undefined
         });
       }
 
@@ -4153,7 +4311,6 @@
         taps = [];
         let panel = document.getElementById('diagnostics');
         if (panel) { panel.remove(); return; }
-        const p = getComputedStyle(document.getElementById('safe-area-probe'));
         const header = document.querySelector('header');
         // What CSS heights such as 100dvh come out as, which can differ from the window's
         const cssHeight = (h) => {
@@ -4164,36 +4321,60 @@
           d.remove();
           return `${Math.round(px * 100) / 100}`;
         };
-        const modes = ['fullscreen', 'standalone', 'minimal-ui', 'browser'].filter((m) => matchMedia(`(display-mode: ${m})`).matches);
-        const lines = [
-          `display-mode: ${modes.join(', ') || '?'}, fullscreen element: ${document.fullscreenElement ? 'yes' : 'no'}`,
-          `window ${innerWidth}x${innerHeight}, screen ${screen.width}x${screen.height}, dpr ${devicePixelRatio}`,
-          `page ${document.documentElement.scrollWidth}x${document.documentElement.scrollHeight}, zoom ${window.visualViewport ? visualViewport.scale.toFixed(2) : '?'}`,
-          `100dvh ${cssHeight('100dvh')}, 100vh ${cssHeight('100vh')}`,
-          `safe-area top ${p.paddingTop} right ${p.paddingRight} bottom ${p.paddingBottom} left ${p.paddingLeft}`,
-          `header ${Math.round(header.getBoundingClientRect().width)} wide, needs ${header.scrollWidth}`,
-          `side padding left ${getComputedStyle(document.body).paddingLeft} right ${getComputedStyle(document.body).paddingRight}`,
-          (() => {
-            const g = window.__asteroidsGameInstance, f = document.getElementById('game-frame').getBoundingClientRect();
-            const gain = g && g.uprightGain ? Math.round((g.uprightGain - 1) * 100) : NaN;
-            return `playfield ${Math.round(f.width)}x${Math.round(f.height)} ${g && g.rotated ? '3:4' : '4:3'}, `
-              + `upright ${gain >= 0 ? '+' : ''}${gain}% area vs 4:3 (goes upright above +${Math.round((UPRIGHT_GAIN - 1) * 100)}%)`;
-          })(),
-          (() => {
-            const g = window.__asteroidsGameInstance, t = document.getElementById('touch-controls');
-            const layout = t.classList.contains('sides') ? 'at the sides' : t.classList.contains('two-row') ? 'below, two rows' : 'below, one row';
-            const gain = g && g.sidesGain ? Math.round((g.sidesGain - 1) * 100) : null;
-            const why = gain === null ? 'sides: no room for the columns'
-              : `sides ${gain >= 0 ? '+' : ''}${gain}% 4:3 area vs below${g.rotated ? ' (upright wins anyway)' : ''}`;
-            return `buttons ${layout}, ${why}`;
-          })(),
-          `root font ${getComputedStyle(document.documentElement).fontSize}`
-        ];
+        const pct = (x) => `${x >= 0 ? '+' : ''}${Math.round(x * 100)}%`;
+        // The layouts resize() tried, one row each, with the one it picked ticked
+        const layoutTable = (g) => {
+          const rows = (g && g.layoutsTried) || [];
+          const largest = Math.max(...rows.map((r) => r.w * r.h));
+          const table = [['shape', 'size', 'where', 'header', 'playfield', 'vs best', 'footer', ''],
+            ...rows.map((r) => [r.shape, r.small ? 'small' : 'large', r.where, r.header, r.w ? `${Math.round(r.w - 2 * OUTLINE)}x${Math.round(r.h - 2 * OUTLINE)}` : '',
+              r.w ? pct(r.w * r.h / largest - 1) : '', r.w ? (r.noFooter ? 'hidden' : 'shown') : '', r.chosen ? '✓' : ''])];
+          const widths = table[0].map((_, i) => Math.max(...table.map((row) => row[i].length)));
+          return table.map((row) => row.map((c, i) => c.padEnd(widths[i])).join('  ').trimEnd());
+        };
+        const lines = () => {
+          const p = getComputedStyle(document.getElementById('safe-area-probe'));
+          const g = window.__asteroidsGameInstance, t = document.getElementById('touch-controls');
+          const f = document.getElementById('game-frame').getBoundingClientRect();
+          const modes = ['fullscreen', 'standalone', 'minimal-ui', 'browser'].filter((m) => matchMedia(`(display-mode: ${m})`).matches);
+          const buttons = (t.classList.contains('sides') ? 'at the sides' : t.classList.contains('two-row') ? 'below, two rows' : 'below, one row')
+            + (t.classList.contains('small') ? ', small' : t.classList.contains('big') ? ', big' : '');
+          return [
+            `display-mode: ${modes.join(', ') || '?'}, fullscreen element: ${document.fullscreenElement ? 'yes' : 'no'}`,
+            `window ${innerWidth}x${innerHeight}, screen ${screen.width}x${screen.height}, dpr ${devicePixelRatio}`,
+            `page ${document.documentElement.scrollWidth}x${document.documentElement.scrollHeight}, zoom ${window.visualViewport ? visualViewport.scale.toFixed(2) : '?'}`,
+            `100dvh ${cssHeight('100dvh')}, 100vh ${cssHeight('100vh')}`,
+            `safe-area top ${p.paddingTop} right ${p.paddingRight} bottom ${p.paddingBottom} left ${p.paddingLeft}`,
+            `header ${Math.round(header.getBoundingClientRect().width)} wide, needs ${header.scrollWidth}`,
+            `side padding left ${getComputedStyle(document.body).paddingLeft} right ${getComputedStyle(document.body).paddingRight}`,
+            `root font ${getComputedStyle(document.documentElement).fontSize}`,
+            '',
+            `playfield ${Math.round(f.width)}x${Math.round(f.height)} ${g && g.rotated ? '3:4' : '4:3'}, buttons ${buttons}`
+              + `${g && g.splitHeader ? ', header beside' : ''}${g && g.noFooter ? ', no footer' : ''}`,
+            `pause menu: buttons ${g ? g.buttonSize : '?'}, shape ${g ? g.viewShape : '?'}`,
+            '',
+            ...layoutTable(g),
+            '',
+            `picks 3:4 if ${pct(UPRIGHT_GAIN - 1)} vs 4:3, small if ${pct(SMALL_GAIN - 1)} vs large,`,
+            `sides unless below is over ${pct(1 / SIDES_LOSS - 1)}, no footer if that's +1%`,
+            ''
+          ];
+        };
         panel = document.createElement('pre');
         panel.id = 'diagnostics';
-        panel.textContent = lines.join('\n');
+        const info = document.createElement('div');
+        info.textContent = lines().join('\n');
+        panel.appendChild(info);
+        // Measured again whenever the page is laid out again (a resize, fullscreen, a
+        // pause menu choice)
+        const relaid = () => {
+          if (panel.isConnected) info.textContent = lines().join('\n');
+          else window.removeEventListener('asteroids-layout', relaid);
+        };
+        window.addEventListener('asteroids-layout', relaid);
         panel.style.cssText = 'position:fixed;left:8px;right:8px;top:8%;max-height:84%;overflow:auto;z-index:100;margin:0;padding:10px;' +
-          'background:#111e;border:1px solid #888;color:#fff;font:12px monospace;white-space:pre-wrap';
+          'background:#1118;border:1px solid #888;color:#fff;font:clamp(10px,2.5vw,12px) monospace;white-space:pre-wrap;' +
+          'text-shadow:0 0 2px #000,0 0 4px #000';
         panel.addEventListener('pointerdown', (e) => e.stopPropagation());
 
         // A button to close the panel (taps on the panel don't reach the logo)
@@ -4204,6 +4385,22 @@
         close.style.cssText = 'padding:6px 10px;border:1px solid #888;background:#333;color:#fff;font:12px monospace';
         close.addEventListener('click', () => panel.remove());
         buttons.appendChild(close);
+        // The pause menu's layout choices, here too (the panel covers the pause menu), so
+        // their effect on the table shows straight away
+        const choice = (key, values, label) => {
+          const b = document.createElement('button');
+          b.style.cssText = close.style.cssText;
+          const show = () => { const g = window.__asteroidsGameInstance; b.textContent = `${label}: ${g ? g[key] : '?'}`; };
+          b.addEventListener('click', () => {
+            const g = window.__asteroidsGameInstance;
+            if (g) g.setLayoutChoice(key, values[(values.indexOf(g[key]) + 1) % values.length]);
+          });
+          window.addEventListener('asteroids-layout', show);
+          show();
+          buttons.appendChild(b);
+        };
+        choice('buttonSize', BUTTON_SIZES, 'Buttons');
+        choice('viewShape', VIEW_SHAPES, 'Shape');
 
         // Live frame rates, updated every second while the panel is open: how often the
         // screen refreshes (frames the browser offers), and how often the game draws

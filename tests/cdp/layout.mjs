@@ -19,11 +19,16 @@ export default async function ({ send, ev, base, sleep }) {
       const h = document.querySelector('header'), f = document.querySelector('footer');
       const lineHeight = Math.max(...[...h.querySelectorAll('button')].filter((b) => b.offsetParent).map((b) => b.getBoundingClientRect().height));
       return {
-        headerFits: h.scrollWidth <= h.clientWidth + 1,
+        // (a header split into the side areas fits when its blocks are on screen and clear of the playfield)
+        headerFits: !h.classList.contains('side') ? h.scrollWidth <= h.clientWidth + 1 : (() => {
+          const fr = document.getElementById('game-frame').getBoundingClientRect();
+          return [h.children[0], ...h.querySelectorAll('.settings-group')].every((el) => { const b = el.getBoundingClientRect();
+            return b.left >= 0 && b.right <= innerWidth && b.top >= 0 && (b.right <= fr.left - 2 || b.left >= fr.right + 2); });
+        })(),
         tallestButton: Math.round(lineHeight),
         footerFits: f.scrollWidth <= f.clientWidth + 1,
         pageFits: document.documentElement.scrollWidth <= innerWidth + 1 && document.documentElement.scrollHeight <= innerHeight + 1,
-        mode: h.classList.contains('wrap') ? 'two rows' : h.classList.contains('compact') ? 'compact' : 'full',
+        mode: h.classList.contains('side') ? 'beside the playfield' : h.classList.contains('wrap') ? 'two rows' : h.classList.contains('compact') ? 'compact' : 'full',
         upright: window.__asteroidsGameInstance.rotated,
         aspect: document.getElementById('game-frame').getBoundingClientRect().width / document.getElementById('game-frame').getBoundingClientRect().height,
         buttonGap: document.getElementById('touch-controls').getBoundingClientRect().top - document.getElementById('game-frame').getBoundingClientRect().bottom - 2, // 2: the outline
@@ -132,21 +137,153 @@ export default async function ({ send, ev, base, sleep }) {
   // On a landscape phone the touch buttons go to the sides, which makes the playfield
   // much bigger than with them below (310x232 before). Each hand's buttons stand in a
   // column (left: rotate left, rotate right, Hyperspace; right: Fire, Thrust, Pause, top
-  // to bottom), with the middle one a third of the way up the window.
+  // to bottom), with the middle one halfway up the window.
   const sd = await ev(`(() => {
     const box = (id) => document.getElementById(id).getBoundingClientRect(), f = box('game-frame');
     const mid = (id) => { const b = box(id); return b.top + b.height / 2; };
     return { sides: document.getElementById('touch-controls').classList.contains('sides'), frame: [f.width, f.height],
       leftOrder: box('btn-touch-left').top < box('btn-touch-right').top && box('btn-touch-right').top < box('btn-touch-hyperspace').top,
       rightOrder: box('btn-touch-fire').top < box('btn-touch-thrust').top && box('btn-touch-thrust').top < box('btn-touch-pause').top,
-      middles: [mid('btn-touch-right'), mid('btn-touch-thrust')], third: innerHeight * 2 / 3,
+      middles: [mid('btn-touch-right'), mid('btn-touch-thrust')], half: innerHeight / 2,
       clear: box('btn-touch-hyperspace').right <= f.left - 2 && box('btn-touch-fire').left >= f.right + 2 };
   })()`);
   ok('landscape phone: touch buttons at the sides', sd.sides);
   ok('landscape phone: playfield much bigger with them there', sd.frame[0] * sd.frame[1] > 1.5 * 310 * 232, sd.frame.map(Math.round).join('x'));
   ok('landscape phone: side buttons in order, top to bottom', sd.leftOrder && sd.rightOrder);
-  ok('landscape phone: rotate right and Thrust a third of the way up', sd.middles.every((m) => Math.abs(m - sd.third) <= 1), JSON.stringify(sd));
+  ok('landscape phone: rotate right and Thrust halfway up', sd.middles.every((m) => Math.abs(m - sd.half) <= 1), JSON.stringify(sd));
   ok('landscape phone: side buttons clear of the playfield', sd.clear);
+
+  // ...and the header moves into the side areas above them, which makes the playfield
+  // bigger still (422x316 with the header on top): the logo and three settings above
+  // the left column, the other three above the right one, all clear of the playfield
+  const hs = await ev(`(() => {
+    const h = document.querySelector('header'), box = (el) => el.getBoundingClientRect(), f = box(document.getElementById('game-frame'));
+    const [left, right] = h.querySelectorAll('.settings-group'), logo = h.children[0];
+    return { side: h.classList.contains('side'), frame: [f.width, f.height],
+      leftSide: [logo, left].every((el) => box(el).right <= f.left - 2 && box(el).left >= 0),
+      rightSide: box(right).left >= f.right + 2 && box(right).right <= innerWidth,
+      above: box(left).bottom <= box(document.getElementById('btn-touch-left')).top && box(right).bottom <= box(document.getElementById('btn-touch-fire')).top,
+      settings: left.children.length + right.children.length };
+  })()`);
+  ok('landscape phone: header split into the side areas', hs.side);
+  ok('landscape phone: playfield bigger with the header there', hs.frame[0] * hs.frame[1] > 1.2 * 422 * 316, hs.frame.map(Math.round).join('x'));
+  ok('landscape phone: header blocks beside the playfield, above the buttons', hs.leftSide && hs.rightSide && hs.above, JSON.stringify(hs));
+  ok('landscape phone: all six settings buttons there', hs.settings === 6);
+  // (the width beside the columns limits the playfield here, so dropping the footer
+  // wouldn't make it bigger: it stays)
+  ok('landscape phone: footer kept (hiding it gains nothing here)', await ev(`getComputedStyle(document.querySelector('footer')).display !== 'none'`));
+
+  // A very short landscape window (Chrome on the folded phone held sideways, about
+  // 961x278): columns of the large buttons don't fit, so the side columns use the small
+  // ones rather than falling back to buttons below (which left a 133x99 playfield)
+  await send('Emulation.setDeviceMetricsOverride', { width: 961, height: 278, deviceScaleFactor: 2.4375, mobile: true });
+  await sleep(600);
+  const sh = await ev(`(() => { const t = document.getElementById('touch-controls'), f = document.getElementById('game-frame').getBoundingClientRect();
+    const hy = document.getElementById('btn-touch-hyperspace').getBoundingClientRect(), pa = document.getElementById('btn-touch-pause').getBoundingClientRect();
+    return { sides: t.classList.contains('sides'), small: t.classList.contains('small'), frame: [f.width, f.height],
+      onScreen: hy.bottom <= innerHeight && pa.bottom <= innerHeight, fits: document.documentElement.scrollHeight <= innerHeight + 1 }; })()`);
+  ok('short landscape window: small side columns', sh.sides && sh.small, JSON.stringify(sh));
+  ok('short landscape window: playfield keeps a playable size', sh.frame[0] >= 280, sh.frame.map(Math.round).join('x'));
+  ok('short landscape window: buttons on screen, page fits', sh.onScreen && sh.fits);
+
+  // In any layout the footer goes when that makes the playfield bigger (375x281 with it
+  // on the phone sideways, 407x543 on the outer screen upright), and the bottom of the
+  // page still keeps clear of a gesture-bar strip
+  for (const [w, h, before] of [[961, 330, 375 * 281], [443, 746, 407 * 543]]) {
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 2.4375, mobile: true });
+  for (const inset of [0, 24]) {
+    await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: inset } });
+    await sleep(600);
+    const nf = await ev(`(() => { const f = document.getElementById('game-frame').getBoundingClientRect(), [l, r] = document.getElementById('touch-controls').children;
+      return { hidden: getComputedStyle(document.querySelector('footer')).display === 'none', frame: [f.width, f.height],
+        lowest: Math.max(f.bottom + 2, l.getBoundingClientRect().bottom, r.getBoundingClientRect().bottom), fits: document.documentElement.scrollHeight <= innerHeight + 1 }; })()`);
+    const label = `no footer ${w}x${h}${inset ? ', with a gesture strip' : ''}`;
+    ok(`${label}: footer hidden`, nf.hidden);
+    if (!inset) ok(`${label}: playfield bigger without it`, nf.frame[0] * nf.frame[1] > 1.05 * before, nf.frame.map(Math.round).join('x'));
+    ok(`${label}: playfield and buttons clear of the bottom, page fits`, nf.lowest <= h - Math.max(8, inset) + 0.5 && nf.fits, JSON.stringify(nf));
+  }
+  }
+
+  // When the footer's controls list and its "ASTEROIDS" would run together (735x574,
+  // with a gesture strip so the footer stays), it drops "ASTEROIDS" rather than the list
+  await send('Emulation.setDeviceMetricsOverride', { width: 735, height: 574, deviceScaleFactor: 2.925, mobile: true });
+  await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 27 } });
+  await sleep(600);
+  const fn = await ev(`(() => { const f = document.querySelector('footer'), shown = (sel) => !!f.querySelector(sel).offsetParent;
+    return { footer: !!f.offsetParent, list: shown('.footer-long'), name: shown('.footer-name'), fits: f.scrollWidth <= f.clientWidth + 1 }; })()`);
+  ok('narrow footer: keeps the controls list, drops "ASTEROIDS", fits', fn.footer && fn.list && !fn.name && fn.fits, JSON.stringify(fn));
+  // The small side buttons are used only when they make the playfield 10% bigger than
+  // the large ones do: at 735x574 they do with a gesture strip (the footer stays, so
+  // the playfield is shorter with the large buttons below it), and not without one
+  const smallButtons = async () => [await ev(`document.getElementById('touch-controls').classList.contains('small')`),
+    `small buttons +${Math.round((await ev('window.__asteroidsGameInstance.smallGain') - 1) * 100)}%`];
+  let [isSmall, gain] = await smallButtons();
+  ok('small buttons for a big gain: used at 735x574 with a gesture strip', isSmall, gain);
+  await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 0 } });
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  [isSmall, gain] = await smallButtons();
+  ok('small buttons only for a big gain: not at 735x574 without one', !isSmall, gain);
+
+  // The pause menu's layout choices: Buttons cycles Auto, Large, Small and Shape cycles
+  // Auto, Landscape, Portrait; each lays the page out again and is remembered
+  await send('Emulation.setDeviceMetricsOverride', { width: 883, height: 689, deviceScaleFactor: 2.4375, mobile: true });
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  const layoutNow = `(() => { const g = window.__asteroidsGameInstance;
+    return { rotated: g.rotated, sides: document.getElementById('touch-controls').classList.contains('sides'), fire: Math.round(document.getElementById('btn-touch-fire').getBoundingClientRect().width),
+      labels: [document.getElementById('btn-button-size').textContent.trim(), document.getElementById('btn-view-shape').textContent.trim()] }; })()`;
+  await ev(`window.__asteroidsGameInstance.startGame(); window.__asteroidsGameInstance.togglePause()`);
+  const pm0 = await ev(layoutNow);
+  await ev(`document.getElementById('btn-button-size').click(); document.getElementById('btn-button-size').click()`);
+  const pmSmall = await ev(layoutNow);
+  ok('pause menu: Buttons: Small makes the touch buttons smaller', pmSmall.labels[0] === 'BUTTONS: SMALL' && pmSmall.fire < pm0.fire, JSON.stringify([pm0, pmSmall]));
+  await ev(`document.getElementById('btn-view-shape').click(); document.getElementById('btn-view-shape').click()`);
+  const pmPortrait = await ev(layoutNow);
+  ok('pause menu: Shape: Portrait shows the playfield upright on a landscape screen, buttons at its sides', !pm0.rotated && pmPortrait.sides && pmPortrait.rotated && pmPortrait.labels[1] === 'SHAPE: PORTRAIT', JSON.stringify(pmPortrait));
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  const pmReloaded = await ev(layoutNow);
+  ok('pause menu: layout choices remembered after a reload', pmReloaded.rotated && pmReloaded.fire === pmSmall.fire && pmReloaded.labels.join() === 'BUTTONS: SMALL,SHAPE: PORTRAIT', JSON.stringify(pmReloaded));
+  await ev(`document.getElementById('btn-button-size').click(); document.getElementById('btn-view-shape').click()`);
+  const pmAuto = await ev(layoutNow);
+  ok('pause menu: back to Auto, the layout is as before', pmAuto.labels.join() === 'BUTTONS: AUTO,SHAPE: AUTO' && !pmAuto.rotated && pmAuto.fire === pm0.fire, JSON.stringify(pmAuto));
+
+  // Buttons at the sides win unless below makes the playfield clearly bigger: with the
+  // large buttons on the unfolded screen's Chrome window (and its gesture strip), the
+  // sides give a playfield 1% smaller than below, and that's where they go
+  await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 32 } });
+  await ev(`localStorage.setItem('asteroids_settings', JSON.stringify({ buttonSize: 'large' }))`);
+  await send('Page.navigate', { url: `${base}/asteroids.html` });
+  await sleep(2500);
+  const ps = await ev(`(() => { const g = window.__asteroidsGameInstance, t = document.getElementById('touch-controls');
+    return { sides: t.classList.contains('sides'), small: t.classList.contains('small'), gain: g.sidesGain }; })()`);
+  ok('buttons at the sides when below is only slightly bigger (large buttons, 883x689 with a gesture strip)',
+    ps.sides && !ps.small && ps.gain < 1, JSON.stringify(ps));
+  await ev(`localStorage.removeItem('asteroids_settings')`);
+  await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 0 } });
+
+  // The diagnostics panel (triple-tap the logo) shows a table of the layouts tried,
+  // with the one picked ticked, and measures again when the window changes size
+  await ev(`(() => { const logo = document.getElementById('brand-logo');
+    for (let i = 0; i < 3; i++) logo.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); })()`);
+  const diag = () => ev(`document.getElementById('diagnostics') ? document.getElementById('diagnostics').textContent : ''`);
+  const d1 = await diag();
+  ok('diagnostics: table of the layouts tried, one picked', /shape +size +where +header +playfield/.test(d1) && (d1.match(/✓/g) || []).length === 1, d1.split('\n').filter((l) => /✓/.test(l)).join(''));
+  await send('Emulation.setDeviceMetricsOverride', { width: 443, height: 746, deviceScaleFactor: 2.4375, mobile: true });
+  await sleep(800);
+  const d2 = await diag();
+  ok('diagnostics: measured again after a resize', d2.includes('window 443x746') && d2.includes('3:4  ') && (d2.match(/✓/g) || []).length === 1,
+    d2.split('\n').filter((l) => /window|✓/.test(l)).join(' | '));
+  // Its own Buttons and Shape buttons change the layout (the panel covers the pause menu's)
+  await ev(`[...document.querySelectorAll('#diagnostics button')].find((b) => b.textContent.startsWith('Shape')).click()`);
+  await sleep(300);
+  const d3 = await diag();
+  ok('diagnostics: its Shape button changes the layout, and the table follows',
+    d3.includes('Shape: landscape') && await ev('!window.__asteroidsGameInstance.rotated') && /4:3 .*✓/.test(d3), d3.split('\n').filter((l) => /✓/.test(l)).join(''));
+  await ev(`window.__asteroidsGameInstance.setLayoutChoice('viewShape', 'auto')`);
+  await ev(`document.getElementById('diagnostics').remove()`);
+  await send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 0 } });
 
   // The touch buttons follow the playfield when the layout changes without a window
   // resize event (as when entering fullscreen on some phones): here the header grows

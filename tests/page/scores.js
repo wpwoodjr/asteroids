@@ -22,16 +22,24 @@ window.addEventListener('load', () => setTimeout(() => {
     g.bestGames = [null, null]; g.lastGame = null;
     g.setGravityLevel(0, false);
 
-    // Where gravity is set
+    // Where gravity is set: in Settings, opened from the start, pause or game over
+    // screen; the start and game over screens say whether it's on
     const toggles = (selector) => document.querySelectorAll(`${selector} [data-gravity-toggle]`).length;
-    ok('a Gravity button on the start and game over screens, not in the pause menu or header',
-      toggles('#screen-start') === 1 && toggles('#screen-game-over') === 1 && toggles('#screen-pause') === 0 && toggles('header') === 0);
+    ok('the Gravity button is in Settings only', toggles('#screen-settings') === 1 && document.querySelectorAll('[data-gravity-toggle]').length === 1);
+    ok('Settings opens from the start, pause and game over screens',
+      ['#screen-start', '#screen-pause', '#screen-game-over'].every((s) => document.querySelector(`${s} [data-settings]`)));
+    ok('the start and game over screens say whether gravity is on',
+      ['#screen-start', '#screen-game-over'].every((s) => document.querySelector(`${s} [data-gravity-status]`)));
     g.state = 'START';
-    document.querySelector('#screen-start [data-gravity-toggle]').click();
+    document.getElementById('btn-start-settings').click();
+    ok('Settings opened from the start screen: Gravity can be changed', !document.getElementById('screen-settings').classList.contains('hidden') &&
+      !document.getElementById('btn-settings-gravity').disabled);
+    document.getElementById('btn-settings-gravity').click();
     const statuses = () => [...document.querySelectorAll('[data-gravity-status]')].map((s) => s.textContent);
-    ok('Gravity: On, on both screens', g.gravityLevel === 1 && g.gravityMode && statuses().every((s) => s === 'ON'), statuses().join());
+    ok('Gravity: On, everywhere it shows', g.gravityLevel === 1 && g.gravityMode && statuses().every((s) => s === 'ON'), statuses().join());
     ok('with its own high score (the gravity list starts at 9,250)', text('#start-high-score') === '9,250' && g.highScore === 9250);
-    document.querySelector('#screen-start [data-gravity-toggle]').click();
+    document.getElementById('btn-settings-gravity').click();
+    document.getElementById('btn-settings-ok').click();
     ok('and back to Off, the high score without gravity', g.gravityLevel === 0 && statuses().every((s) => s === 'OFF') &&
       text('#start-high-score') === '15,420');
 
@@ -46,8 +54,10 @@ window.addEventListener('load', () => setTimeout(() => {
       loadReplay(REPLAY_KEYS.bestGravity).score === 4000 && !loadReplay(REPLAY_KEYS.best));
     // Initials go on the list the game went on, even after gravity is changed on the
     // game over screen
-    document.querySelector('#screen-game-over [data-gravity-toggle]').click();
-    ok('gravity can be changed on the game over screen', g.state === 'GAMEOVER' && g.gravityLevel === 0);
+    document.getElementById('btn-game-over-settings').click();
+    document.getElementById('btn-settings-gravity').click();
+    document.getElementById('btn-settings-ok').click();
+    ok('gravity can be changed from the game over screen', g.state === 'GAMEOVER' && g.gravityLevel === 0);
     const input = document.getElementById('initials-input');
     input.value = 'GRV';
     g.commitInitials();
@@ -62,7 +72,7 @@ window.addEventListener('load', () => setTimeout(() => {
     ok('separate best games', g.bestGames[0].score === 16000 && g.bestGames[1].score === 4000);
     const bestShown = () => text('#btn-replay-best [data-replay-score]');
     const offBest = bestShown();
-    document.querySelector('#screen-game-over [data-gravity-toggle]').click();
+    g.toggleGravity(); // (Settings' Gravity button, from the game over screen)
     ok('the Best Game button shows the best game for the gravity chosen', offBest.endsWith('16,000') && bestShown() === 'GRV 4,000',
       `${offBest} / ${bestShown()}`);
 
@@ -76,7 +86,7 @@ window.addEventListener('load', () => setTimeout(() => {
     const startBest = document.getElementById('btn-start-replay-best');
     const tops = [], shown = [];
     for (let i = 0; i < 2; i++) {
-      document.querySelector('#screen-start [data-gravity-toggle]').click();
+      g.toggleGravity();
       tops.push(menuTop()); shown.push(getComputedStyle(startBest).visibility === 'visible' && !startBest.classList.contains('hidden'));
     }
     // (gravity was on: off, then on again)
@@ -101,7 +111,7 @@ window.addEventListener('load', () => setTimeout(() => {
     ok('Reset clears only the list showing', board('asteroids_leaderboard') === null && board('asteroids_leaderboard_gravity').length === 10 &&
       g.highScores[0] === 15420 && g.highScores[1] === 9250 && !g.bestGames[0] && g.bestGames[1], JSON.stringify(g.highScores));
     document.getElementById('btn-scores-ok').click();
-    document.querySelector('#screen-game-over [data-gravity-toggle]').click();
+    g.toggleGravity(); // (Settings' Gravity button, from the game over screen)
     document.getElementById('btn-game-over-scores').click();
     ok('with gravity off it opens on the list without gravity', pressed().join() === 'true,false');
     document.getElementById('btn-scores-ok').click();

@@ -337,6 +337,16 @@ export default async function ({ send, ev, base, sleep }) {
   await ev(`document.getElementById('btn-button-size').click(); document.getElementById('btn-button-size').click()`);
   const pmSmall = await ev(layoutNow);
   ok('pause menu: no Gravity (it is set between games)', await ev(`!document.querySelector('#screen-pause [data-gravity-toggle]')`));
+  // More Settings opens Settings, where Gravity is dimmed during a game (it has its own
+  // scores), and the layout choices are
+  ok('pause menu: More Settings opens Settings, Gravity dimmed', await ev(`(() => {
+    document.getElementById('btn-pause-settings').click();
+    const open = !document.getElementById('screen-settings').classList.contains('hidden'), b = document.getElementById('btn-settings-gravity');
+    const level = window.__asteroidsGameInstance.gravityLevel; b.click();
+    const r = open && b.disabled && window.__asteroidsGameInstance.gravityLevel === level && !!document.querySelector('#screen-settings #btn-view-shape');
+    document.getElementById('btn-settings-ok').click();
+    return r && window.__asteroidsGameInstance.state === 'PAUSED';
+  })()`));
   ok('pause menu: no tooltips', await ev(`!document.querySelector('#screen-pause [title]')`));
   // Sound: On/Off there too, the same setting as the header's sound button
   const sound = `({ pause: document.getElementById('sound-status').textContent, header: document.getElementById('audio-status').textContent, muted: window.__asteroidsGameInstance.sound.muted })`;
@@ -355,8 +365,8 @@ export default async function ({ send, ev, base, sleep }) {
     g.sound.playExtraLife = play;
     return off === 0 && played === 1 && !g.sound.muted;
   })()`));
-  ok('pause menu: Fullscreen, then Sound', await ev(`(() => { const ids = [...document.querySelectorAll('#screen-pause button')].map((b) => b.id);
-    return ids.indexOf('btn-pause-fullscreen') + 1 === ids.indexOf('btn-pause-sound'); })()`));
+  ok('pause menu: Fullscreen, Sound, then More Settings', await ev(`(() => { const ids = [...document.querySelectorAll('#screen-pause button')].map((b) => b.id);
+    return ids.indexOf('btn-pause-fullscreen') + 1 === ids.indexOf('btn-pause-sound') && ids.indexOf('btn-pause-sound') + 1 === ids.indexOf('btn-pause-settings'); })()`));
   ok('pause menu: Buttons: Small makes the touch buttons smaller', pmSmall.labels[0] === 'BUTTONS: SMALL' && pmSmall.fire < pm0.fire, JSON.stringify([pm0, pmSmall]));
   await ev(`document.getElementById('btn-view-shape').click()`);
   const pmPortrait = await ev(layoutNow);
@@ -365,14 +375,14 @@ export default async function ({ send, ev, base, sleep }) {
   await sleep(2500);
   const pmReloaded = await ev(layoutNow);
   ok('pause menu: layout choices remembered after a reload', pmReloaded.rotated && pmReloaded.fire === pmSmall.fire && pmReloaded.labels.join() === 'BUTTONS: SMALL,SHAPE: TALL', JSON.stringify(pmReloaded));
-  ok('pause menu: the layout choices are titled for a wide screen', pmReloaded.title === 'WIDE SCREEN:', pmReloaded.title);
+  ok('pause menu: the layout choices are titled for a wide screen', pmReloaded.title === 'WIDE SCREEN LAYOUT:', pmReloaded.title);
   // Choices are kept for wide (landscape) and tall (portrait) screens separately: those
   // made on this wide screen don't apply on a tall one (the outer screen), and come back
   // when the screen is wide again
   await send('Emulation.setDeviceMetricsOverride', { width: 443, height: 746, deviceScaleFactor: 2.4375, mobile: true });
   await sleep(600);
   const pmPortraitWindow = await ev(layoutNow);
-  ok('pause menu: wide screen choices not used on a tall screen', pmPortraitWindow.labels.join() === 'BUTTONS: AUTO,SHAPE: AUTO' && pmPortraitWindow.title === 'TALL SCREEN:', JSON.stringify(pmPortraitWindow));
+  ok('pause menu: wide screen choices not used on a tall screen', pmPortraitWindow.labels.join() === 'BUTTONS: AUTO,SHAPE: AUTO' && pmPortraitWindow.title === 'TALL SCREEN LAYOUT:', JSON.stringify(pmPortraitWindow));
   await send('Emulation.setDeviceMetricsOverride', { width: 883, height: 689, deviceScaleFactor: 2.4375, mobile: true });
   await sleep(600);
   ok('pause menu: wide screen choices back on a wide screen', (await ev(layoutNow)).labels.join() === 'BUTTONS: SMALL,SHAPE: TALL');
@@ -381,7 +391,7 @@ export default async function ({ send, ev, base, sleep }) {
   await send('Emulation.setDeviceMetricsOverride', { width: 442, height: 603, screenWidth: 883, screenHeight: 851, deviceScaleFactor: 2.4375, mobile: true });
   await sleep(600);
   const pmSplit = await ev(layoutNow);
-  ok('pause menu: a tall window on a wide screen keeps the wide screen choices', pmSplit.labels.join() === 'BUTTONS: SMALL,SHAPE: TALL' && pmSplit.title === 'WIDE SCREEN:', JSON.stringify(pmSplit));
+  ok('pause menu: a tall window on a wide screen keeps the wide screen choices', pmSplit.labels.join() === 'BUTTONS: SMALL,SHAPE: TALL' && pmSplit.title === 'WIDE SCREEN LAYOUT:', JSON.stringify(pmSplit));
   await send('Emulation.setDeviceMetricsOverride', { width: 883, height: 689, deviceScaleFactor: 2.4375, mobile: true });
   await sleep(600);
   await ev(`document.getElementById('btn-button-size').click(); document.getElementById('btn-view-shape').click(); document.getElementById('btn-view-shape').click()`);

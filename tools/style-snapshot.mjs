@@ -80,7 +80,8 @@ const SETUP = `(() => { const g = ${g};
 const hideMenus = `document.querySelectorAll('[id^=screen-]').forEach((o) => o.classList.add('hidden'))`;
 const STATES = {
   start: '0',
-  'start-gravity': `document.querySelector('#screen-start [data-gravity-toggle]').click()`,
+  'start-gravity': `${g}.toggleGravity()`,
+  settings: `document.getElementById('btn-start-settings').click()`,
   pause: `${g}.startGame(); ${g}.togglePause()`,
   'pause-muted': `${g}.startGame(); ${g}.togglePause(); ${g}.setAudioMuted(true)`,
   gameover: `(() => { const g = ${g}; g.startGame(); g.ufo = null; g.ufoSpawnTimer = 1e9; g.lives = 1;

@@ -195,7 +195,7 @@
     .menu-backdrop { background-color: rgba(0, 0, 0, var(--menu-dim, 0.5)); }
     /* The Hall of Fame or Help opened from the start, game over or pause screen hides
        that screen, so only the rocks show behind it */
-    body:has(:is(#screen-scores, #screen-help):not(.hidden)) :is(#screen-start, #screen-game-over, #screen-pause) { visibility: hidden; }
+    body:has(:is(#screen-scores, #screen-help, #screen-settings):not(.hidden)) :is(#screen-start, #screen-game-over, #screen-pause) { visibility: hidden; }
     .hint { color: var(--gray-400); font-size: 0.75rem; line-height: 1rem; }
 
     /* Menu buttons: white for the main action, outlined for the others (gold for scores
@@ -212,6 +212,8 @@
     .btn-outline { padding: 0.5rem 1rem; border: 1px solid var(--gray-600); color: var(--gray-300); }
     .btn-setting { padding: 0.5rem 1rem; border: 1px solid var(--gray-700); color: var(--gray-400); }
     .btn-outline:hover, .btn-setting:hover { border-color: var(--gray-400); color: #ffffff; }
+    /* (a setting that can't be changed now: gravity during a game) */
+    .btn-setting:disabled, .btn-setting:disabled:hover { opacity: 0.45; cursor: default; border-color: var(--gray-700); color: var(--gray-400); }
     .btn-gold { padding: 0.5rem 1rem; border: 1px solid rgba(234, 179, 8, 0.6); color: var(--yellow-300); }
     .btn-gold:hover { border-color: var(--yellow-400); color: var(--yellow-200); }
     .btn-gray { padding: 0.5rem 1.25rem; background-color: var(--gray-800); color: #ffffff; }
@@ -239,11 +241,16 @@
     .score-table .bonus { color: var(--green-400); padding-top: 0.25rem; border-top: 1px solid var(--gray-800); }
     .score-table .pts { font-family: 'Press Start 2P', monospace; color: var(--yellow-400); }
     .score-table .bonus .pts { color: inherit; }
-    .high-score-line { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 28rem; padding: 0 0.25rem; }
+    .gravity-note { margin-top: 0.75rem; font-size: 0.75rem; line-height: 1rem; color: var(--gray-400); }
+    .menu-settings { margin-top: 1rem; }
+    /* (the high score and the Hall of Fame button side by side, or one above the other,
+       centered, when they don't fit) */
+    .high-score-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-around; row-gap: 0.5rem; width: 100%; max-width: 28rem; }
+    .high-score-line > * { white-space: nowrap; }
     .high-score-line > div { font-family: 'Press Start 2P', monospace; font-size: 0.75rem; line-height: 1rem; color: var(--gray-400); }
-    /* (room for 7 digits whatever the score, so the line lays out the same for both
-       score lists, and switching gravity doesn't move the start screen) */
-    #start-high-score { display: inline-block; min-width: 7ch; text-align: left; color: var(--yellow-400); font-weight: 700; margin-left: 0.25rem; }
+    /* (room for scores up to 99,999 whatever the score, so the line lays out the same
+       for both score lists, and switching gravity doesn't move the start screen) */
+    #start-high-score { display: inline-block; min-width: 6ch; text-align: left; color: var(--yellow-400); font-weight: 700; margin-left: 0.375rem; }
     #btn-view-leaderboard {
       display: flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.625rem;
       border: 1px solid rgba(202, 138, 4, 0.5); color: var(--yellow-300);
@@ -254,7 +261,7 @@
     #screen-pause h2 { font-size: 2.25rem; line-height: 2.5rem; letter-spacing: 0.1em; margin-bottom: 1.5rem; }
     .pause-menu { width: 14rem; display: flex; flex-direction: column; gap: 0.75rem; }
     #btn-resume-game { padding: 0.625rem 1rem; font-size: 0.875rem; line-height: 1.25rem; }
-    #layout-config-title { font-family: 'Press Start 2P', monospace; font-size: 0.75rem; line-height: 1rem; color: var(--gray-300); margin-top: 0.25rem; text-align: left; }
+    #layout-config-title { font-family: 'Press Start 2P', monospace; font-size: 0.75rem; line-height: 1rem; color: var(--gray-300); margin-top: 0.75rem; text-align: left; } /* (set apart from the settings above) */
 
     /* The game over screen. It spreads out on a taller playfield: its parts further
        apart and the score box roomier, from the usual tight spacing on a short one. */
@@ -271,7 +278,7 @@
     .score-box .value { color: #ffffff; font-weight: 700; margin-left: 0.25rem; }
     .score-box .value.high { color: var(--yellow-400); }
     #game-over-score { font-size: 1.5rem; line-height: 1.25; }
-    .score-row { display: flex; justify-content: space-around; padding-top: 0.25rem; border-top: 1px solid var(--gray-800); font-size: 0.75rem; line-height: 1rem; }
+    .score-row { display: flex; justify-content: space-around; gap: 0.5rem; padding-top: 0.25rem; border-top: 1px solid var(--gray-800); font-size: 0.75rem; line-height: 1rem; }
     #initials-entry { display: flex; flex-direction: column; align-items: center; }
     #initials-entry label { font-family: 'Press Start 2P', monospace; font-size: 0.75rem; line-height: 1rem; color: var(--yellow-300); margin-bottom: 0.25rem; }
     .initials-row { display: flex; align-items: center; gap: 0.5rem; }
@@ -285,6 +292,8 @@
     #btn-initials-ok { padding: 0.75rem; }
     .button-row { display: flex; align-items: center; gap: 0.75rem; }
     .button-row.wraps { flex-wrap: wrap; justify-content: center; }
+    /* (a row with nothing to show takes no space: no replays yet) */
+    .button-row:not(:has(> :not(.hidden))) { display: none; }
     #btn-play-again { padding: 0.625rem 1.25rem; letter-spacing: 0.05em; box-shadow: 0 0 15px rgba(255, 255, 255, 0.6); }
     #btn-game-over-scores { padding-block: 0.625rem; }
     #btn-replay-last:not(:hover) { color: var(--gray-200); }
@@ -294,6 +303,8 @@
     .panel { width: 100%; padding: 1.25rem; border: 1px solid var(--gray-700); border-radius: 0.5rem; color: var(--gray-300); font-size: 0.875rem; line-height: 1.25rem; }
     #screen-help .panel { max-width: 32rem; }
     #screen-scores .panel { max-width: 28rem; }
+    #screen-settings .panel { max-width: 20rem; }
+    .settings-list { display: flex; flex-direction: column; gap: 0.75rem; }
     .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--gray-800); }
     .panel-title { font-family: 'Press Start 2P', monospace; font-size: 1rem; line-height: 1.5rem; color: #ffffff; }
     .btn-close { padding: 0 0.5rem; color: var(--gray-400); font-weight: 700; font-size: 1.125rem; line-height: 1.75rem; }
@@ -508,10 +519,8 @@
             INSERT COIN / PLAY
           </button>
           <p class="hint">PRESS SPACEBAR OR CLICK TO START</p>
-          <!-- Gravity is set between games: it has its own scores -->
-          <button data-gravity-toggle class="btn btn-outline">
-            GRAVITY: <span data-gravity-status class="status dim">OFF</span>
-          </button>
+          <!-- Which it is (gravity has its own scores; it's set in Settings) -->
+          <p class="gravity-note font-arcade">GRAVITY: <span data-gravity-status class="status dim">OFF</span></p>
           <button id="btn-start-replay-best" class="hidden btn btn-gold">
             ▶ WATCH BEST GAME <span data-replay-score></span>
           </button>
@@ -550,12 +559,13 @@
 
         <div class="high-score-line">
           <div>
-            ALL-TIME HIGH: <span id="start-high-score">00</span>
+            HIGH SCORE:<span id="start-high-score">00</span>
           </div>
           <button id="btn-view-leaderboard" class="btn">
             🏆 HALL OF FAME
           </button>
         </div>
+        <button id="btn-start-settings" data-settings class="btn btn-outline menu-settings">SETTINGS</button>
 
         </div>
       </div>
@@ -572,23 +582,14 @@
             RESTART (R)
           </button>
           <!-- (only where fullscreen can be turned on and off, like the header's Full) -->
-          <button id="btn-pause-fullscreen" class="btn btn-setting">
-            FULLSCREEN: <span id="fullscreen-status" class="status dim">OFF</span>
+          <button id="btn-pause-fullscreen" data-fullscreen-toggle class="btn btn-setting">
+            FULLSCREEN: <span id="fullscreen-status" data-fullscreen-status class="status dim">OFF</span>
           </button>
-          <button id="btn-pause-sound" class="btn btn-setting">
-            SOUND: <span id="sound-status" class="status lit">ON</span>
+          <button id="btn-pause-sound" data-sound-toggle class="btn btn-setting">
+            SOUND: <span id="sound-status" data-sound-status class="status lit">ON</span>
           </button>
-          <!-- Layout settings (see resize()): each cycles through its choices, which are
-               kept for wide and tall screens separately -->
-          <div id="layout-config-title">WIDE SCREEN:</div>
-          <button id="btn-view-shape" class="btn btn-setting">
-            SHAPE: AUTO
-          </button>
-          <button id="btn-button-size" class="btn btn-setting">
-            BUTTONS: AUTO
-          </button>
-          <button id="btn-button-place" class="btn btn-setting">
-            PLACE: AUTO
+          <button id="btn-pause-settings" data-settings class="btn btn-setting">
+            MORE SETTINGS
           </button>
         </div>
         </div>
@@ -615,6 +616,10 @@
               <span class="label">HIGH:</span>
               <span id="game-over-high" class="value high">00</span>
             </div>
+            <div>
+              <span class="label">GRAVITY:</span>
+              <span class="value"><span data-gravity-status class="status dim">OFF</span></span>
+            </div>
           </div>
         </div>
 
@@ -638,9 +643,6 @@
           </button>
         </div>
         <div class="button-row wraps">
-          <button data-gravity-toggle class="btn btn-outline">
-            GRAVITY: <span data-gravity-status class="status dim">OFF</span>
-          </button>
           <button id="btn-replay-last" class="hidden btn btn-outline">
             ▶ REPLAY
           </button>
@@ -648,6 +650,7 @@
             ★ BEST GAME <span data-replay-score></span>
           </button>
         </div>
+        <button id="btn-game-over-settings" data-settings class="btn btn-outline">SETTINGS</button>
         </div>
       </div>
 
@@ -679,7 +682,7 @@
               <h4>PRO SURVIVAL TIPS</h4>
               <p>
                 • Arcade Inertia: Your ship keeps drifting after you let go of thrust and only slowly coasts to a stop (no friction in Gravity Mode). To brake fast, rotate 180° and counter-thrust.<br>
-                • Gravity Mode [G, or Gravity on the start and game over screens]: a planet in the middle pulls on everything. Slingshot around it, and shoot asteroids before they fall in: each one it swallows costs you its points! It's set between games, and has its own Hall of Fame.<br>
+                • Gravity Mode [G, or Gravity in Settings]: a planet in the middle pulls on everything. Slingshot around it, and shoot asteroids before they fall in: each one it swallows costs you its points! It's set between games, and has its own Hall of Fame.<br>
                 • Hyperspace is a gamble: you vanish for a moment and reappear at random, and the jump can destroy your ship. It's riskier when few asteroids remain.<br>
                 • Small saucers are deadly accurate: destroy them before they line up a shot!<br>
                 • Watch your own shots: they wrap around the screen and can hit your ship. Saucer shots smash asteroids too.<br>
@@ -727,6 +730,49 @@
               Reset these scores
             </button>
             <button id="btn-scores-ok" class="btn btn-gray">
+              CLOSE
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings: opened from the start, pause and game over screens -->
+      <div id="screen-settings" data-overlay class="hidden menu modal menu-backdrop">
+        <div class="overlay-fit panel">
+          <div class="panel-head">
+            <h3 class="panel-title vector-glow">SETTINGS</h3>
+            <button id="btn-close-settings" class="btn-close">✕</button>
+          </div>
+          <div class="settings-list">
+            <!-- (dimmed during a game: gravity has its own scores, so it's set between games) -->
+            <button id="btn-settings-gravity" data-gravity-toggle class="btn btn-setting">
+              GRAVITY: <span data-gravity-status class="status dim">OFF</span>
+            </button>
+            <button id="btn-settings-sound" data-sound-toggle class="btn btn-setting">
+              SOUND: <span data-sound-status class="status lit">ON</span>
+            </button>
+            <!-- (only where fullscreen can be turned on and off, like the header's Full) -->
+            <button id="btn-settings-fullscreen" data-fullscreen-toggle class="btn btn-setting">
+              FULLSCREEN: <span data-fullscreen-status class="status dim">OFF</span>
+            </button>
+            <button id="btn-settings-palette" class="btn btn-setting">
+              PALETTE: <span data-theme-name class="status lit">CLASSIC</span>
+            </button>
+            <!-- Layout settings (see resize()): each cycles through its choices, which are
+                 kept for wide and tall screens separately -->
+            <div id="layout-config-title">WIDE SCREEN LAYOUT:</div>
+            <button id="btn-view-shape" class="btn btn-setting">
+              SHAPE: AUTO
+            </button>
+            <button id="btn-button-size" class="btn btn-setting">
+              BUTTONS: AUTO
+            </button>
+            <button id="btn-button-place" class="btn btn-setting">
+              PLACE: AUTO
+            </button>
+          </div>
+          <div class="panel-foot">
+            <button id="btn-settings-ok" class="btn btn-gray">
               CLOSE
             </button>
           </div>
@@ -1309,6 +1355,8 @@
     const VIEW_SHAPES = ['auto', 'tall', 'wide'];
     const BUTTON_PLACES = ['auto', 'sides', 'below'];
     // The pause menu's layout choices, the values each may take
+    // The panels over the playfield (see openPanel in initDOM)
+    const PANELS = ['screen-help', 'screen-scores', 'screen-settings'];
     const LAYOUT_CHOICES = { buttonSize: BUTTON_SIZES, buttonPlace: BUTTON_PLACES, viewShape: VIEW_SHAPES };
     const OUTLINE = 2; // the playfield's outline, in CSS px (drawn outside #game-frame; see its CSS)
     const MENU_FPS = 30; // frame rate behind the start and game over screens
@@ -2215,18 +2263,21 @@
       initDOM() {
         this.updateHighScoreDisplays();
 
-        // The Hall of Fame and Help each close the other when opened (both are see-through)
-        const screenScores = document.getElementById('screen-scores');
-        const screenHelp = document.getElementById('screen-help');
-        // (it opens on the list for the gravity setting)
+        // Help, the Hall of Fame and Settings: panels over the playfield, one at a time
+        // (they're see-through, so each closes the others). Opened during a game, they
+        // pause it.
+        const openPanel = (id) => {
+          for (const panel of PANELS) document.getElementById(panel).classList.toggle('hidden', panel !== id);
+          if (this.state === 'PLAYING') this.togglePause();
+        };
+        const closePanel = (id) => () => document.getElementById(id).classList.add('hidden');
+        // (the Hall of Fame opens on the list for the gravity setting)
         const openScores = () => {
           this.scoresTab = this.scoreMode;
           this.renderLeaderboard();
-          screenHelp.classList.add('hidden');
-          screenScores.classList.remove('hidden');
-          if (this.state === 'PLAYING') this.togglePause();
+          openPanel('screen-scores');
         };
-        const closeScores = () => screenScores.classList.add('hidden');
+        const closeScores = closePanel('screen-scores');
 
         document.getElementById('btn-scores').addEventListener('click', openScores);
         document.getElementById('btn-view-leaderboard').addEventListener('click', openScores);
@@ -2238,8 +2289,8 @@
           tab.addEventListener('click', () => { this.scoresTab = Number(tab.dataset.scoresTab); this.renderLeaderboard(); });
         }
 
-        for (const id of ['btn-fullscreen', 'btn-pause-fullscreen']) {
-          document.getElementById(id).addEventListener('click', () => this.toggleFullscreen());
+        for (const button of [document.getElementById('btn-fullscreen'), ...document.querySelectorAll('[data-fullscreen-toggle]')]) {
+          button.addEventListener('click', () => this.toggleFullscreen());
         }
         document.addEventListener('fullscreenchange', () => {
           this.resize();
@@ -2253,17 +2304,21 @@
 
         document.getElementById('btn-theme').addEventListener('click', () => this.cycleTheme());
         document.getElementById('btn-audio').addEventListener('click', () => this.toggleAudio());
-        document.getElementById('btn-pause-sound').addEventListener('click', () => this.toggleAudio());
+        for (const button of document.querySelectorAll('[data-sound-toggle]')) button.addEventListener('click', () => this.toggleAudio());
         for (const button of document.querySelectorAll('[data-gravity-toggle]')) button.addEventListener('click', () => this.toggleGravity());
 
-        document.getElementById('btn-help').addEventListener('click', () => {
-          closeScores();
-          screenHelp.classList.remove('hidden');
-          if (this.state === 'PLAYING') this.togglePause();
-        });
-        const hideHelp = () => screenHelp.classList.add('hidden');
-        document.getElementById('btn-close-help').addEventListener('click', hideHelp);
-        document.getElementById('btn-help-ok').addEventListener('click', hideHelp);
+        document.getElementById('btn-help').addEventListener('click', () => openPanel('screen-help'));
+        for (const id of ['btn-close-help', 'btn-help-ok']) document.getElementById(id).addEventListener('click', closePanel('screen-help'));
+        // Settings. Gravity can be changed only between games (it has its own scores):
+        // during one it's dimmed.
+        for (const button of document.querySelectorAll('[data-settings]')) {
+          button.addEventListener('click', () => {
+            document.getElementById('btn-settings-gravity').disabled = !this.canChangeGravity();
+            openPanel('screen-settings');
+          });
+        }
+        for (const id of ['btn-close-settings', 'btn-settings-ok']) document.getElementById(id).addEventListener('click', closePanel('screen-settings'));
+        document.getElementById('btn-settings-palette').addEventListener('click', () => this.cycleTheme());
 
         document.getElementById('btn-start-game').addEventListener('click', () => this.startGame());
         document.getElementById('btn-resume-game').addEventListener('click', () => this.togglePause());
@@ -2760,10 +2815,12 @@
       updateFullscreenAvailability() {
         const available = this.canToggleFullscreen();
         document.getElementById('btn-fullscreen').classList.toggle('hidden', !available);
-        document.getElementById('btn-pause-fullscreen').classList.toggle('hidden', !available);
-        const status = document.getElementById('fullscreen-status'), on = !!document.fullscreenElement;
-        status.textContent = on ? 'ON' : 'OFF';
-        status.className = `status ${on ? 'lit' : 'dim'}`;
+        for (const button of document.querySelectorAll('[data-fullscreen-toggle]')) button.classList.toggle('hidden', !available);
+        const on = !!document.fullscreenElement;
+        for (const status of document.querySelectorAll('[data-fullscreen-status]')) {
+          status.textContent = on ? 'ON' : 'OFF';
+          status.className = `status ${on ? 'lit' : 'dim'}`;
+        }
         document.getElementById('help-fullscreen-key').classList.toggle('hidden', !available);
         this.resize(); // showing/hiding Full changes the header's width
       }
@@ -2836,7 +2893,7 @@
       }
 
       showLayoutChoices() {
-        document.getElementById('layout-config-title').textContent = this.layoutOrientation() === 'landscape' ? 'WIDE SCREEN:' : 'TALL SCREEN:';
+        document.getElementById('layout-config-title').textContent = this.layoutOrientation() === 'landscape' ? 'WIDE SCREEN LAYOUT:' : 'TALL SCREEN LAYOUT:';
         document.getElementById('btn-button-size').textContent = `BUTTONS: ${this.buttonSize.toUpperCase()}`;
         document.getElementById('btn-view-shape').textContent = `SHAPE: ${this.viewShape.toUpperCase()}`;
         document.getElementById('btn-button-place').textContent = `PLACE: ${this.buttonPlace.toUpperCase()}`;
@@ -2905,6 +2962,7 @@
           this.art.drawStarfighterIcon(c, 10, 7.5, 0, 19);
         }
         document.getElementById('theme-name').textContent = theme.name;
+        for (const name of document.querySelectorAll('[data-theme-name]')) name.textContent = theme.name.toUpperCase();
         this.resize(); // the header may need compacting for a longer name
         document.getElementById('brand-logo').style.color = theme.primary;
       }
@@ -2923,9 +2981,10 @@
         const status = document.getElementById('audio-status');
         status.textContent = isMuted ? 'MUTED' : 'SFX';
         status.className = `btn-label wide-only ${isMuted ? 'warn' : 'lit'}`;
-        const pauseStatus = document.getElementById('sound-status');
-        pauseStatus.textContent = isMuted ? 'OFF' : 'ON';
-        pauseStatus.className = `status ${isMuted ? 'warn' : 'lit'}`;
+        for (const menuStatus of document.querySelectorAll('[data-sound-status]')) {
+          menuStatus.textContent = isMuted ? 'OFF' : 'ON';
+          menuStatus.className = `status ${isMuted ? 'warn' : 'lit'}`;
+        }
         this.resize(); // the header may need compacting for a longer label
         // Restart looping sounds that were skipped while muted
         if (!isMuted && this.state === 'PLAYING') {
@@ -2938,9 +2997,13 @@
       // Gravity is set between games (on the start and game over screens, or G there),
       // not during one: games with it and without it have separate scores
       toggleGravity() {
-        if (this.replay || !(this.state === 'START' || this.state === 'GAMEOVER')) return;
+        if (!this.canChangeGravity()) return;
         this.setGravityLevel((this.gravityLevel + 1) % GRAVITY_LEVELS.length, true);
         this.persistSettings();
+      }
+
+      canChangeGravity() {
+        return !this.replay && (this.state === 'START' || this.state === 'GAMEOVER');
       }
 
       // Which score list counts: 0 without gravity, 1 with it. The high score and best
@@ -3256,9 +3319,9 @@
         this.requestRender(); // the HUD shows the high score
       }
 
+      // Help, the Hall of Fame or Settings is open (see PANELS)
       isModalOpen() {
-        return !document.getElementById('screen-help').classList.contains('hidden') ||
-               !document.getElementById('screen-scores').classList.contains('hidden');
+        return PANELS.some((id) => !document.getElementById(id).classList.contains('hidden'));
       }
 
       resetInput() {

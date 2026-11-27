@@ -66,8 +66,8 @@ window.addEventListener('load', () => setTimeout(() => {
     g.renderLeaderboard();
     const rows = [...document.getElementById('leaderboard-list').children];
     ok('the Hall of Fame shows 10 scores', rows.length === 10, `${rows.length} rows`);
-    ok("this game's score is highlighted", rows.filter((r) => r.className.includes('bg-yellow-500/20')).length === 1 &&
-       rows[0].className.includes('bg-yellow-500/20') && rows[0].textContent.includes('WPW'));
+    ok("this game's score is highlighted", rows.filter((r) => r.classList.contains('you')).length === 1 &&
+       rows[0].classList.contains('you') && rows[0].textContent.includes('WPW'));
 
     // A score below the 10th doesn't ask
     finish(100);
@@ -97,7 +97,7 @@ window.addEventListener('load', () => setTimeout(() => {
     saveInitials('AB');
     g.renderLeaderboard();
     const look = [...document.getElementById('leaderboard-list').children].map((r) => ({
-      name: r.children[1].textContent, box: r.className.includes('bg-yellow-500/20'), mine: r.className.includes('text-yellow-300') }));
+      name: r.children[1].textContent, box: r.classList.contains('you'), mine: r.classList.contains('mine') }));
     ok("the player's other scores are picked out, without the box",
        look.filter((r) => r.name === 'AB').length === 2 && look.filter((r) => r.name === 'AB').every((r) => r.mine && !r.box), JSON.stringify(look.filter((r) => r.mine || r.box)));
     ok("the game just played still has the box", look.filter((r) => r.box).length === 1 && look.find((r) => r.box).name === 'Z');

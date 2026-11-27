@@ -91,17 +91,20 @@ The game itself lives in `asteroids.html`. `manifest.webmanifest`, `sw.js` (the 
 - **`AsteroidsGame`** runs the game. It owns the state machine (`START`, `PLAYING`, `PAUSED`, `GAMEOVER`), entity updates, collisions, rendering and input.
 - The game simulates a fixed **1000 × 750** logical world and scales it onto the canvas. Each frame's time step is capped at 100 ms, so physics doesn't jump after the tab was in the background.
 - Physics uses frame-time-based velocity integration with screen wrap-around. Gravity is an inverse-square pull with a minimum-distance clamp, scaled for each entity type.
-- **Replays** store what the player did, not what was on screen: the game's random seed, its starting gravity, each frame's length and the controls held, and when shots, hyperspace jumps and gravity changes happened. Playing them back through the same game code repeats the game exactly, so ten minutes of play at 60 fps takes about 50,000 characters (about 100 KB as the browser stores it). This depends on the game being deterministic: gameplay randomness must come from `game.random` (or `game.fxRandom` for explosion particles), never `Math.random`. **When a change alters how a game plays out** (physics, timing, scoring, saucers, anything using `game.random`), bump `REPLAY_VERSION` in `asteroids.html`, so that replays saved before the change are dropped instead of playing out a different game. The `replay` test plays a whole game and checks that its replay ends identically.
+- **Replays** store what the player did, not what was on screen: the game's random seed, whether gravity was on, each frame's length and the controls held, and when shots and hyperspace jumps happened. Playing them back through the same game code repeats the game exactly, so ten minutes of play at 60 fps takes about 50,000 characters (about 100 KB as the browser stores it). This depends on the game being deterministic: gameplay randomness must come from `game.random` (or `game.fxRandom` for explosion particles), never `Math.random`. **When a change alters how a game plays out** (physics, timing, scoring, saucers, anything using `game.random`), bump `REPLAY_VERSION` in `asteroids.html`, so that replays saved before the change are dropped instead of playing out a different game. The `replay` test plays a whole game and checks that its replay ends identically.
 
 ### Styles
 
-The page's HTML uses [Tailwind CSS](https://tailwindcss.com) classes. The CSS for them is generated ahead of time and embedded in `asteroids.html` (the `<style id="tailwind">` block), so players' browsers download nothing from Tailwind. After adding or changing Tailwind classes, rebuild it:
+The page's styles are plain CSS in `asteroids.html`'s `<style>` block: a small reset, the page's colors as CSS variables, and rules for its parts (header, playfield, menus and their buttons, Help and the Hall of Fame, touch buttons, footer). There's no build step. The `styles` test fails if the page or its code uses a class that has no rule.
+
+To check that a CSS change only changes what it should, `tools/style-snapshot.mjs` records the position and visual styles of every element in each screen of the game at several window sizes (with buttons hovered and pressed too), and compares two recordings:
 
 ```sh
-node tools/build-css.mjs
+node --experimental-websocket tools/style-snapshot.mjs before.json
+# ...change the CSS...
+node --experimental-websocket tools/style-snapshot.mjs after.json
+node tools/style-snapshot.mjs --compare before.json after.json
 ```
-
-This needs Tailwind CSS v3.4.17's command-line tool: the [standalone executable](https://github.com/tailwindlabs/tailwindcss/releases/tag/v3.4.17) (no npm needed) or `npx tailwindcss@3.4.17`. Set `TAILWINDCSS=/path/to/tailwindcss` if it isn't on your `PATH`. The `styles` test fails if a class is missing its CSS.
 
 The fonts, [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) and [Share Tech Mono](https://fonts.google.com/specimen/Share+Tech+Mono), are embedded too (the `<style id="fonts">` block), as the Latin subsets Google Fonts serves.
 

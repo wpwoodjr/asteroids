@@ -61,7 +61,7 @@ window.addEventListener('load', () => setTimeout(() => {
     g.bullets = [{ x: 400, y: 600, vx: 300, vy: 0, life: 1 }];
     g.ufoBullets = [{ x: 600, y: 600, vx: 0, vy: 200, life: 1 }];
     g.createParticleBurst(500, 500, 20, THEMES[real].rock);
-    g.keys.thrust = true; g.ship.invulnerable = 1;
+    g.keys.thrust = true;
     let rolls = 0, drawError = null;
     const gameRandom = g.random, fxRandom = g.fxRandom, gravity = g.gravityLevel;
     for (const level of [0, 1]) {

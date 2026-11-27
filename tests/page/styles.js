@@ -1,7 +1,7 @@
 // Embedded styles and fonts: the page loads nothing from other sites, every class the
 // game uses (in its HTML, and class names its code sets later) has a matching CSS rule,
-// and the embedded fonts are used by the page and the canvas. If the class check fails
-// after adding a Tailwind class, rebuild the styles: node tools/build-css.mjs
+// and the embedded fonts are used by the page and the canvas. The styles are plain CSS
+// in the page (no Tailwind).
 window.addEventListener('load', () => setTimeout(async () => {
   const out = [];
   const ok = (n, c, x = '') => out.push(`${c ? 'PASS' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`);
@@ -25,7 +25,9 @@ window.addEventListener('load', () => setTimeout(async () => {
     const width = (font) => { ctx.font = font; return ctx.measureText('GAME OVER 12340').width; };
     ok('canvas text uses them', width("24px 'Press Start 2P', monospace") !== width('24px monospace') &&
       width("14px 'Share Tech Mono', monospace") !== width('14px monospace'));
-    ok('Tailwind styles are embedded', !!document.getElementById('tailwind') && document.getElementById('tailwind').textContent.length > 5000);
+    ok('no Tailwind left', !document.getElementById('tailwind') && ![...document.styleSheets].some((sheet) => {
+      try { return [...sheet.cssRules].some((r) => /--tw-/.test(r.cssText)); } catch (e) { return false; }
+    }));
 
     // Every class defined by a rule in any stylesheet on the page
     const defined = new Set();
@@ -55,7 +57,7 @@ window.addEventListener('load', () => setTimeout(async () => {
 
     const missing = [...used].filter((c) => !defined.has(c));
     ok(`every class used has a style rule (${used.size} classes)`, missing.length === 0, missing.join(', '));
-    ok('classes set later by code are covered too', ['text-red-400', 'animate-pulse', 'text-cyan-400', 'bg-yellow-500/20'].every((c) => used.has(c) && defined.has(c)));
+    ok('classes set later by code are covered too', ['status', 'gravity-on', 'lb-row', 'mine', 'pulse'].every((c) => used.has(c) && defined.has(c)));
   } catch (e) { out.push('ERROR ' + e.stack); }
   window.__testResults = out;
   window.__testDone = true;

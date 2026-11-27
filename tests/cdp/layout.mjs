@@ -282,6 +282,19 @@ export default async function ({ send, ev, base, sleep }) {
       down: [r('btn-touch-hyperspace').top - Math.max(r('btn-touch-left').bottom, r('btn-touch-right').bottom), r('btn-touch-pause').top - Math.max(r('btn-touch-thrust').bottom, r('btn-touch-fire').bottom)].map(Math.round) }; })()`);
   ok('two rows: the second row moves down for more space between the rows, the first stays under the playfield (443x961)',
     sp5.down.every((gap) => gap === 16) && sp5.firstRow === 10, JSON.stringify(sp5));
+  // The two hands below the playfield keep 24 px apart, inside the bar's side padding:
+  // with large buttons on one row at 735x710 (the unfolded screen at the stuck 2.925
+  // scale), 1.5 pills used to spill into the padding, shifting the row right and
+  // leaving Hyperspace against Pause
+  await send('Emulation.setDeviceMetricsOverride', { width: 735, height: 710, deviceScaleFactor: 2.925, mobile: true });
+  await ev(`(() => { const g = window.__asteroidsGameInstance; g.setLayoutChoice('buttonSize', 'large'); g.setLayoutChoice('buttonPlace', 'below'); })()`);
+  await sleep(600);
+  const apart = await ev(`(() => { const t = document.getElementById('touch-controls'), r = (el) => el.getBoundingClientRect(), st = getComputedStyle(t);
+    const [left, right] = t.children, bar = r(t);
+    return { gap: Math.round(r(right).left - r(left).right), inside: r(left).left >= bar.left + parseFloat(st.paddingLeft) - 1 && r(right).right <= bar.right - parseFloat(st.paddingRight) + 1,
+      pill: t.style.getPropertyValue('--pill'), sides: t.classList.contains('sides') }; })()`);
+  ok('the two hands below the playfield keep 24 px apart, inside the bar (large, below, 735x710)', !apart.sides && apart.gap >= 24 && apart.inside, JSON.stringify(apart));
+  await ev(`(() => { const g = window.__asteroidsGameInstance; g.setLayoutChoice('buttonSize', 'auto'); g.setLayoutChoice('buttonPlace', 'auto'); })()`);
 
   // Where the width limits the playfield (the unfolded screen turned, in fullscreen),
   // dropping the footer wouldn't make the playfield bigger: it stays

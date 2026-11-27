@@ -1303,6 +1303,7 @@
     const SMALL_GAIN = 1.1; // use the small touch buttons when that makes the playfield's area this much bigger
     const HEADER_CLEAR = 24; // px between the header's buttons and touch buttons below them, so a tap doesn't hit the wrong one
     const SIDES_LOSS = 0.95; // touch buttons go at the sides unless below makes the playfield's area bigger than this allows
+    const HANDS_APART = 24; // px at least between the two hands of touch buttons below the playfield (Hyperspace and Pause), so a tap doesn't hit the wrong one
     // The player's layout choices (pause menu); 'auto' leaves them to resize()
     const BUTTON_SIZES = ['auto', 'large', 'small'];
     const VIEW_SHAPES = ['auto', 'tall', 'wide'];
@@ -2363,6 +2364,12 @@
         }
       }
 
+      // Lay the page out for the window: the playfield as big as it can be, with the
+      // header, touch buttons and footer around it. In steps: choose the layout (the
+      // playfield's shape, the buttons' size and place, where the header goes, whether
+      // the footer shows), fit the buttons to it (a second row, pills, more space between
+      // them), size the playfield on the screen's pixels, then place the header and the
+      // buttons around it.
       resize() {
         // The page is the window's height. CSS's 100dvh says the same, but Chrome doesn't
         // always update it when an app's window is resized (on a Googlebook it stayed 51 px
@@ -2370,79 +2377,142 @@
         document.body.style.height = `${window.innerHeight}px`;
         this.useLayoutChoices(); // (the window may have turned between portrait and landscape)
         this.fitChrome();
-        const main = document.querySelector('main');
-        const frame = document.getElementById('game-frame');
-        if (!main || !frame) return;
+        const ui = this.layoutElements();
+        if (!ui) return;
+        ui.touch.style.transform = ui.header.style.transform = '';
+        ui.touch.classList.remove('two-row', 'small', 'pill');
+        for (const el of [ui.leftHand, ui.rightHand, ui.logo, ui.settingsLeft, ui.settingsRight]) el.style.left = el.style.top = '';
 
-        // Largest playfield of the view's shape that fits in <main>. Its side padding is
-        // zero (the page's side padding is the playfield's margin, so it lines up with the
-        // header) unless the touch buttons are at the sides, when it makes room for them.
-        let targetAspect = this.width / this.height;
-        const fitFrame = () => {
-          const r = main.getBoundingClientRect(), st = getComputedStyle(main);
-          // The view's shape is fitted inside the playfield's 2 px outline (OUTLINE each side)
-          const roomW = r.width - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight) - 2 * OUTLINE;
-          const roomH = r.height - 2 * OUTLINE;
-          const byWidth = roomW / targetAspect <= roomH;
-          const w = byWidth ? roomW : roomH * targetAspect, h = byWidth ? roomW / targetAspect : roomH;
-          return { w: w + 2 * OUTLINE, h: h + 2 * OUTLINE, byWidth, ok: roomW > 0 && roomH > 0 };
-        };
+        const chosen = this.chooseLayout();
+        const fit = this.fitButtons(chosen);
+        if (!fit.ok) return;
+        const { pixelsW, pixelsH, dpr } = this.sizeFrame(fit);
+        this.placeChrome();
 
-        const touch = document.getElementById('touch-controls');
+        // One canvas pixel per screen pixel, plus a spare pixel on every side that the
+        // frame crops off: the browser blends a canvas's outermost pixels with what's
+        // behind it, so those must not be the visible ones
+        this.canvas.width = pixelsW + 2;
+        this.canvas.height = pixelsH + 2;
+        this.canvas.style.width = `${(pixelsW + 2) / dpr}px`;
+        this.canvas.style.height = `${(pixelsH + 2) / dpr}px`;
+
+        const uniformScale = Math.min(pixelsW / this.viewW, pixelsH / this.viewH);
+        this.scaleX = uniformScale;
+        this.scaleY = uniformScale;
+
+        // Enlarge the HUD on small screens so the score stays at least ~12 CSS px tall
+        const cssScale = fit.w / this.viewW;
+        this.hudScale = Math.min(2.2, Math.max(1, 12 / (18 * cssScale)));
+
+        // The menus on the playfield fit its new size now (not a frame later, when their
+        // own ResizeObserver would)
+        for (const o of this.overlays()) this.fitOverlay(o);
+
+        // Resizing the canvas clears it, so draw it again
+        this.requestRender();
+        window.dispatchEvent(new Event('asteroids-layout')); // (the diagnostics panel updates)
+      }
+
+      // The parts of the page that resize() lays out (found once)
+      layoutElements() {
+        if (this.ui) return this.ui;
+        const main = document.querySelector('main'), frame = document.getElementById('game-frame');
+        if (!main || !frame) return null;
+        const touch = document.getElementById('touch-controls'), header = document.querySelector('header');
         const [leftHand, rightHand] = touch.children;
-        const header = document.querySelector('header');
-        const logo = header.children[0], [settingsLeft, settingsRight] = header.querySelectorAll('.settings-group');
-        touch.style.transform = header.style.transform = '';
-        touch.classList.remove('two-row', 'small', 'pill');
-        for (const el of [leftHand, rightHand, logo, settingsLeft, settingsRight]) el.style.left = el.style.top = '';
+        const [settingsLeft, settingsRight] = header.querySelectorAll('.settings-group');
+        this.ui = { main, frame, touch, leftHand, rightHand, header, logo: header.children[0], settingsLeft, settingsRight };
+        return this.ui;
+      }
 
-        // Lays the page out with the touch buttons below the playfield, or in a column at
-        // each side of it, optionally with the header split into the side areas above
-        // them. <main>'s side padding makes room for whatever is at the sides.
-        const setSides = (on, splitHeader = false, small = this.buttonSize === 'small') => {
-          touch.classList.toggle('sides', on);
-          touch.classList.toggle('small', small);
-          document.body.classList.toggle('sides', on);
-          if (on && splitHeader) header.classList.add('side', 'compact');
-          else this.fitChrome();
-          const beside = !on ? [] : splitHeader ? [leftHand, rightHand, logo, settingsLeft, settingsRight] : [leftHand, rightHand];
-          const room = beside.length ? Math.max(...beside.map((el) => el.offsetWidth)) + 8 : 0;
-          main.style.paddingLeft = main.style.paddingRight = room ? `${room}px` : '';
-        };
-        // Where a side column's top goes: with its top button (rotate left, Fire) halfway up
-        // the window, kept between the header (or the header's blocks at the top of the
-        // side areas, HEADER_CLEAR below its buttons so a tap doesn't hit the wrong one)
-        // and the bottom of the play area.
-        const columnTop = (hand) => {
-          const room = main.getBoundingClientRect();
-          const settings = hand === leftHand ? settingsLeft : settingsRight;
-          const highest = this.splitHeader ? room.top + logo.offsetHeight + 6 + settings.offsetHeight + HEADER_CLEAR
-            : header.getBoundingClientRect().bottom + HEADER_CLEAR;
-          const topButton = hand === leftHand ? hand.firstElementChild : hand.lastElementChild; // (the right column is bottom up)
-          const top = Math.max(highest, Math.min(room.bottom - hand.offsetHeight, innerHeight / 2 - topButton.offsetHeight / 2));
-          return top;
-        };
-        // Whether each side's things fit, one above the other, in the play area's height
-        const sidesFit = (splitHeader) => {
-          const height = main.getBoundingClientRect().height;
-          // (with the header on top, the columns keep HEADER_CLEAR below it: <main> itself
-          // starts a little below the header)
-          const belowHeader = Math.max(0, HEADER_CLEAR - (main.offsetTop - header.offsetTop - header.offsetHeight));
-          const left = leftHand.offsetHeight + (splitHeader ? logo.offsetHeight + 6 + settingsLeft.offsetHeight + HEADER_CLEAR : belowHeader);
-          // (the right settings block sits level with the left one, below the logo)
-          const right = rightHand.offsetHeight + (splitHeader ? logo.offsetHeight + 6 + settingsRight.offsetHeight + HEADER_CLEAR : belowHeader);
-          return Math.max(left, right) <= height;
-        };
+      // The largest playfield of the given shape that fits in <main>. Its side padding is
+      // zero (the page's side padding is the playfield's margin, so it lines up with the
+      // header) unless the touch buttons are at the sides, when it makes room for them.
+      fitFrame(aspect) {
+        const { main } = this.ui;
+        const r = main.getBoundingClientRect(), st = getComputedStyle(main);
+        // The view's shape is fitted inside the playfield's 2 px outline (OUTLINE each side)
+        const roomW = r.width - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight) - 2 * OUTLINE;
+        const roomH = r.height - 2 * OUTLINE;
+        const byWidth = roomW / aspect <= roomH;
+        const w = byWidth ? roomW : roomH * aspect, h = byWidth ? roomW / aspect : roomH;
+        return { w: w + 2 * OUTLINE, h: h + 2 * OUTLINE, byWidth, ok: roomW > 0 && roomH > 0 };
+      }
 
-        // A 4:3 playfield has its touch buttons below it on one row (which leaves it the
-        // most height) or at the sides, as on a landscape screen; the header then moves
-        // into the side areas too, when that fits and makes the playfield bigger. The
-        // small buttons are used only when they make the playfield bigger by SMALL_GAIN
-        // than the best layout with the large ones, as on a screen too short for columns
-        // of the large buttons beside the header.
-        // Every layout is measured with the footer and without: it goes when that makes
-        // the playfield bigger (by 1% or more, so not for a rounding difference, nor when
-        // the width is what limits the playfield).
+      // Whether the touch buttons below the playfield fit across the page: both hands
+      // inside the bar's side padding, with room between them. (Not just the bar's own
+      // overflow: buttons spilling into its padding don't count as overflow, so a row too
+      // wide looked shifted right, with no space left between the hands.)
+      buttonsFitAcross() {
+        const { touch, leftHand, rightHand } = this.ui;
+        const st = getComputedStyle(touch);
+        const room = touch.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
+        return leftHand.offsetWidth + rightHand.offsetWidth + HANDS_APART <= room + 1;
+      }
+
+      // Lays the page out with the touch buttons below the playfield, or in a column at
+      // each side of it, optionally with the header split into the side areas above
+      // them. <main>'s side padding makes room for whatever is at the sides.
+      setSides(on, splitHeader = false, small = this.buttonSize === 'small') {
+        const { main, touch, leftHand, rightHand, header, logo, settingsLeft, settingsRight } = this.ui;
+        touch.classList.toggle('sides', on);
+        touch.classList.toggle('small', small);
+        document.body.classList.toggle('sides', on);
+        if (on && splitHeader) header.classList.add('side', 'compact');
+        else this.fitChrome();
+        const beside = !on ? [] : splitHeader ? [leftHand, rightHand, logo, settingsLeft, settingsRight] : [leftHand, rightHand];
+        const room = beside.length ? Math.max(...beside.map((el) => el.offsetWidth)) + 8 : 0;
+        main.style.paddingLeft = main.style.paddingRight = room ? `${room}px` : '';
+      }
+
+      // How far below the top of the play area a side column can start, under the
+      // header split into the side areas: the logo, the settings group on that side, and
+      // HEADER_CLEAR below its buttons so a tap doesn't hit the wrong one
+      belowSplitHeader(settings) {
+        return this.ui.logo.offsetHeight + 6 + settings.offsetHeight + HEADER_CLEAR;
+      }
+
+      // Whether each side's things fit, one above the other, in the play area's height
+      sidesFit(splitHeader) {
+        const { main, header, leftHand, rightHand, settingsLeft, settingsRight } = this.ui;
+        const height = main.getBoundingClientRect().height;
+        // (with the header on top, the columns keep HEADER_CLEAR below it: <main> itself
+        // starts a little below the header)
+        const belowHeader = Math.max(0, HEADER_CLEAR - (main.offsetTop - header.offsetTop - header.offsetHeight));
+        // (the right settings block sits level with the left one, below the logo)
+        const left = leftHand.offsetHeight + (splitHeader ? this.belowSplitHeader(settingsLeft) : belowHeader);
+        const right = rightHand.offsetHeight + (splitHeader ? this.belowSplitHeader(settingsRight) : belowHeader);
+        return Math.max(left, right) <= height;
+      }
+
+      // Where a side column's top goes: with its top button (rotate left, Fire) halfway up
+      // the window, kept between the header (or the header's blocks at the top of the
+      // side areas) and the bottom of the play area.
+      columnTop(hand) {
+        const { main, header, leftHand, settingsLeft, settingsRight } = this.ui;
+        const room = main.getBoundingClientRect();
+        const highest = this.splitHeader ? room.top + this.belowSplitHeader(hand === leftHand ? settingsLeft : settingsRight)
+          : header.getBoundingClientRect().bottom + HEADER_CLEAR;
+        const topButton = hand === leftHand ? hand.firstElementChild : hand.lastElementChild; // (the right column is bottom up)
+        return Math.max(highest, Math.min(room.bottom - hand.offsetHeight, innerHeight / 2 - topButton.offsetHeight / 2));
+      }
+
+      // Choose the layout, trying each in turn, and lay the page out with it: the
+      // playfield's shape (this.rotated), the buttons' size and place, the header on top
+      // or split into the side areas, and the footer shown or not. Returns the choice.
+      //
+      // A 4:3 playfield has its touch buttons below it on one row (which leaves it the
+      // most height) or at the sides, as on a landscape screen; the header then moves
+      // into the side areas too, when that fits and makes the playfield bigger. The
+      // small buttons are used only when they make the playfield bigger by SMALL_GAIN
+      // than the best layout with the large ones, as on a screen too short for columns
+      // of the large buttons beside the header.
+      // Every layout is measured with the footer and without: it goes when that makes
+      // the playfield bigger (by 1% or more, so not for a rounding difference, nor when
+      // the width is what limits the playfield).
+      chooseLayout() {
+        const { touch } = this.ui;
         const area = (f) => f.w * f.h;
         const setFooter = (hide) => document.body.classList.toggle('no-footer', hide);
         const withFooter = (measure) => {
@@ -2455,11 +2525,11 @@
           if (hidden && (!kept || area(hidden) >= 1.01 * area(kept))) return { ...hidden, noFooter: true, bare };
           return kept && { ...kept, noFooter: false, bare };
         };
-        const bestSides = (small) => {
+        const bestSides = (aspect, small) => {
           let best = null;
           for (const split of [false, true]) {
-            setSides(true, split, small);
-            const f = withFooter(() => { const f = fitFrame(); return f.ok && sidesFit(split) ? f : null; });
+            this.setSides(true, split, small);
+            const f = withFooter(() => { const f = this.fitFrame(aspect); return f.ok && this.sidesFit(split) ? f : null; });
             if (f && (!best || area(f) > area(best))) best = { ...f, split, small, bare: Math.max(f.bare, best ? best.bare : 0) };
             else if (f) best.bare = Math.max(best.bare, f.bare);
           }
@@ -2477,21 +2547,19 @@
         // (every layout tried, for the diagnostics panel's table)
         const tried = this.layoutsTried = [];
         const bestLayout = (aspect, twoRows) => {
-          targetAspect = aspect;
           const forSize = (small) => {
-            setSides(false, false, small);
+            this.setSides(false, false, small);
             const row = (f, where, header) => (tried.push({ shape: twoRows ? '3:4' : '4:3', small, where, header, ...f }), tried[tried.length - 1]);
             // Below: on one row for a 4:3 playfield, or two when one is too wide for the
             // screen (and always two for an upright one); not at all if even two are
-            const fitsAcross = () => touch.scrollWidth <= touch.clientWidth + 1;
             touch.classList.toggle('two-row', twoRows);
-            if (!fitsAcross()) touch.classList.add('two-row');
+            if (!this.buttonsFitAcross()) touch.classList.add('two-row');
             const belowRows = touch.classList.contains('two-row');
-            let below = fitsAcross() ? { ...withFooter(fitFrame), small, sides: false, belowRows } : null;
+            const below = this.buttonsFitAcross() ? { ...withFooter(() => this.fitFrame(aspect)), small, sides: false, belowRows } : null;
             touch.classList.remove('two-row');
             if (below) below.row = row(below, 'below', 'top');
             else row({ w: 0, h: 0 }, 'below', 'no room');
-            const side = bestSides(small);
+            const side = bestSides(aspect, small);
             if (side) side.row = row(side, 'sides', side.split ? 'sides' : 'top');
             else row({ w: 0, h: 0 }, 'sides', 'no room');
             if (!below && !side) return null;
@@ -2523,27 +2591,40 @@
         // (what the sides and the small buttons gained, for checking the rules)
         this.sidesGain = chosen.sidesGain;
         this.smallGain = chosen.smallGain;
-        targetAspect = this.viewW / this.viewH;
-        const atSides = chosen.sides;
-        this.splitHeader = atSides && chosen.split;
+
+        // Lay the page out with it
+        this.atSides = chosen.sides;
+        this.splitHeader = this.atSides && chosen.split;
         this.smallButtons = chosen.small;
-        setSides(atSides, this.splitHeader, this.smallButtons);
-        if (!atSides && chosen.belowRows) touch.classList.add('two-row');
+        this.setSides(this.atSides, this.splitHeader, this.smallButtons);
+        if (!this.atSides && chosen.belowRows) touch.classList.add('two-row');
         this.noFooter = chosen.noFooter;
         setFooter(this.noFooter);
+        return chosen;
+      }
+
+      // Fit the touch buttons to the chosen layout, without making the playfield any
+      // smaller: a second row below a 4:3 playfield, pills instead of round buttons, and
+      // more space between them, each where there's room for it. Returns the playfield's
+      // size (fitFrame()).
+      fitButtons(chosen) {
+        const { touch, leftHand, rightHand } = this.ui;
+        const atSides = this.atSides, aspect = this.viewW / this.viewH;
+        // (whether a change to the buttons left the playfield as big as it was)
+        const sameSize = (f, fit) => f.w >= fit.w - 0.5 && f.h >= fit.h - 0.5;
 
         // Touch buttons below a 4:3 playfield: Hyperspace and Pause go on a second row
         // (under the rotate and thrust/fire buttons) only if that doesn't make the
         // playfield smaller. The playfield may move up to make room.
-        let fit = fitFrame();
+        let fit = this.fitFrame(aspect);
         if (!this.rotated && !atSides && !chosen.belowRows) {
           touch.classList.add('two-row');
-          const twoRowWidth = fitFrame().w;
+          const twoRowWidth = this.fitFrame(aspect).w;
           touch.classList.remove('two-row');
-          fit = fitFrame();
+          fit = this.fitFrame(aspect);
           if (twoRowWidth >= fit.w - 0.5) {
             touch.classList.add('two-row');
-            fit = fitFrame();
+            fit = this.fitFrame(aspect);
           }
         }
         // The round buttons stretch into pills (easier to hit) wherever there's room for
@@ -2553,54 +2634,58 @@
         // room below). The longest that fits, up to half again as long as wide.
         touch.style.removeProperty('--pill');
         for (const property of ['--gap-x', '--gap-y', '--row-extra']) touch.style.removeProperty(property);
-        if (fit.ok) {
-          const setPills = (shape) => {
-            touch.classList.toggle('pill', !!shape);
-            if (shape) touch.style.setProperty('--pill', shape);
-            if (atSides) setSides(true, this.splitHeader, this.smallButtons); // (the side areas' width follows the buttons)
-          };
-          let pills = false;
-          for (const shape of [1.5, 1.4, 1.3, 1.2, 1.1]) {
-            setPills(shape);
-            const pill = fitFrame();
-            const fits = atSides ? sidesFit(this.splitHeader) : touch.scrollWidth <= touch.clientWidth + 1;
-            if (pill.w >= fit.w - 0.5 && pill.h >= fit.h - 0.5 && fits) { fit = pill; pills = true; break; }
-          }
-          if (!pills) setPills(null);
-          // Last, and least: a little more space between the buttons (so a thumb is less
-          // likely to catch the wrong one), the most, up to 8 px more, that changes nothing
-          // else: the same playfield, the buttons still fit, and the side columns stay
-          // where they were. Side by side below the playfield, one above the other at the
-          // sides. (Between two rows below it, see where the buttons are lifted.)
-          const usual = this.smallButtons ? 4 : 8;
-          this.buttonGap = { x: usual, y: usual };
-          const columnTops = () => atSides ? [columnTop(leftHand), columnTop(rightHand)] : [];
-          const tops = columnTops();
-          for (const axis of atSides ? ['y'] : ['x']) {
-            for (let gap = usual + 8; gap > usual; gap -= 2) {
-              touch.style.setProperty(`--gap-${axis}`, `${gap}px`);
-              const spaced = fitFrame();
-              const fits = atSides ? sidesFit(this.splitHeader) && columnTops().every((top, i) => Math.abs(top - tops[i]) < 0.5)
-                : touch.scrollWidth <= touch.clientWidth + 1;
-              if (spaced.w >= fit.w - 0.5 && spaced.h >= fit.h - 0.5 && fits) { fit = spaced; this.buttonGap[axis] = gap; break; }
-              touch.style.removeProperty(`--gap-${axis}`);
-            }
+        if (!fit.ok) return fit;
+        const setPills = (shape) => {
+          touch.classList.toggle('pill', !!shape);
+          if (shape) touch.style.setProperty('--pill', shape);
+          if (atSides) this.setSides(true, this.splitHeader, this.smallButtons); // (the side areas' width follows the buttons)
+        };
+        let pills = false;
+        for (const shape of [1.5, 1.4, 1.3, 1.2, 1.1]) {
+          setPills(shape);
+          const pill = this.fitFrame(aspect);
+          const fits = atSides ? this.sidesFit(this.splitHeader) : this.buttonsFitAcross();
+          if (sameSize(pill, fit) && fits) { fit = pill; pills = true; break; }
+        }
+        if (!pills) setPills(null);
+        // Last, and least: a little more space between the buttons (so a thumb is less
+        // likely to catch the wrong one), the most, up to 8 px more, that changes nothing
+        // else: the same playfield, the buttons still fit, and the side columns stay
+        // where they were. Side by side below the playfield, one above the other at the
+        // sides. (Between two rows below it, see where the buttons are lifted.)
+        const usual = this.smallButtons ? 4 : 8;
+        this.buttonGap = { x: usual, y: usual };
+        const columnTops = () => atSides ? [this.columnTop(leftHand), this.columnTop(rightHand)] : [];
+        const tops = columnTops();
+        for (const axis of atSides ? ['y'] : ['x']) {
+          for (let gap = usual + 8; gap > usual; gap -= 2) {
+            touch.style.setProperty(`--gap-${axis}`, `${gap}px`);
+            const spaced = this.fitFrame(aspect);
+            const fits = atSides ? this.sidesFit(this.splitHeader) && columnTops().every((top, i) => Math.abs(top - tops[i]) < 0.5)
+              : this.buttonsFitAcross();
+            if (sameSize(spaced, fit) && fits) { fit = spaced; this.buttonGap[axis] = gap; break; }
+            touch.style.removeProperty(`--gap-${axis}`);
           }
         }
-        if (!fit.ok) return;
-        const frameWidth = fit.w, frameHeight = fit.h;
+        return fit;
+      }
 
-        // The frame and the canvas inside it sit exactly on the screen's pixels.
-        // Otherwise (when a CSS pixel isn't a whole number of screen pixels) the canvas's
-        // edge rows are shared with whatever is behind it, which showed as a stray light
-        // line along the bottom on some screens.
-        // The side with no room to spare sets the size, and the other side follows from it
-        // at the view's shape, so the world fills the frame.
+      // Size the playfield (fit: from fitFrame()) on the screen's pixels. Returns its
+      // size in screen pixels, and the screen's pixels per CSS pixel.
+      //
+      // The frame and the canvas inside it sit exactly on the screen's pixels.
+      // Otherwise (when a CSS pixel isn't a whole number of screen pixels) the canvas's
+      // edge rows are shared with whatever is behind it, which showed as a stray light
+      // line along the bottom on some screens.
+      // The side with no room to spare sets the size, and the other side follows from it
+      // at the view's shape, so the world fills the frame.
+      sizeFrame(fit) {
+        const { frame } = this.ui;
         const dpr = window.devicePixelRatio || 1;
         const shape = this.viewW / this.viewH;
-        const pixelsW = fit.byWidth ? Math.floor((frameWidth - 2 * OUTLINE) * dpr)
-          : Math.round(Math.floor((frameHeight - 2 * OUTLINE) * dpr) * shape);
-        const pixelsH = fit.byWidth ? Math.round(pixelsW / shape) : Math.floor((frameHeight - 2 * OUTLINE) * dpr);
+        const pixelsW = fit.byWidth ? Math.floor((fit.w - 2 * OUTLINE) * dpr)
+          : Math.round(Math.floor((fit.h - 2 * OUTLINE) * dpr) * shape);
+        const pixelsH = fit.byWidth ? Math.round(pixelsW / shape) : Math.floor((fit.h - 2 * OUTLINE) * dpr);
         frame.style.width = `${pixelsW / dpr}px`;
         frame.style.height = `${pixelsH / dpr}px`;
         // Nudged with relative offsets, not a transform
@@ -2609,12 +2694,18 @@
         const nudge = (v) => (Math.round(v * dpr) - v * dpr) / dpr;
         frame.style.left = `${nudge(at.left)}px`;
         frame.style.top = `${nudge(at.top)}px`;
+        return { pixelsW, pixelsH, dpr };
+      }
 
+      // Place the header and the touch buttons around the playfield, once it has its size
+      placeChrome() {
+        const { main, frame, touch, leftHand, rightHand, header, logo, settingsLeft, settingsRight } = this.ui;
+        const atSides = this.atSides;
         // The header sits just above the playfield, as it does when there's no room to
         // spare: when there is, it moves down to it, which also keeps it clear of a camera
         // cutout at the top of the screen. (Not so far that it pushes the side columns
         // below it down.)
-        const columnTops = atSides && !this.splitHeader ? [columnTop(leftHand), columnTop(rightHand)] : [];
+        const columnTops = atSides && !this.splitHeader ? [this.columnTop(leftHand), this.columnTop(rightHand)] : [];
         let down = Math.round(frame.getBoundingClientRect().top - OUTLINE - 4 - header.getBoundingClientRect().bottom);
         if (columnTops.length) down = Math.min(down, Math.floor(Math.min(...columnTops) - HEADER_CLEAR - header.getBoundingClientRect().bottom));
         if (down > 0 && !this.splitHeader) header.style.transform = `translateY(${down}px)`;
@@ -2633,49 +2724,25 @@
             touch.style.setProperty('--row-extra', `${extra}px`);
             this.buttonGap.y += extra;
           }
-        } else {
-          // Buttons at the sides: each column next to the playfield, at columnTop(), below
-          // the header's blocks when it's split into the side areas
-          const room = main.getBoundingClientRect(), f = frame.getBoundingClientRect();
-          const leftEdge = f.left - OUTLINE - 8, rightEdge = f.right + OUTLINE + 8;
-          if (this.splitHeader) {
-            // The logo and first settings group above the left column, against the
-            // playfield; the second group level with the first, above the right column
-            const place = (el, left, top) => { el.style.left = `${Math.round(left)}px`; el.style.top = `${Math.round(top)}px`; };
-            place(logo, leftEdge - logo.offsetWidth, room.top);
-            const row = room.top + logo.offsetHeight + 6;
-            place(settingsLeft, leftEdge - settingsLeft.offsetWidth, row);
-            place(settingsRight, rightEdge, row);
-          }
-          for (const hand of [leftHand, rightHand]) {
-            hand.style.top = `${Math.round(columnTop(hand))}px`;
-            hand.style.left = `${Math.round(hand === leftHand ? leftEdge - hand.offsetWidth : rightEdge)}px`;
-          }
+          return;
         }
-
-        // One canvas pixel per screen pixel, plus a spare pixel on every side that the
-        // frame crops off: the browser blends a canvas's outermost pixels with what's
-        // behind it, so those must not be the visible ones
-        this.canvas.width = pixelsW + 2;
-        this.canvas.height = pixelsH + 2;
-        this.canvas.style.width = `${(pixelsW + 2) / dpr}px`;
-        this.canvas.style.height = `${(pixelsH + 2) / dpr}px`;
-
-        const uniformScale = Math.min(pixelsW / this.viewW, pixelsH / this.viewH);
-        this.scaleX = uniformScale;
-        this.scaleY = uniformScale;
-
-        // Enlarge the HUD on small screens so the score stays at least ~12 CSS px tall
-        const cssScale = frameWidth / this.viewW;
-        this.hudScale = Math.min(2.2, Math.max(1, 12 / (18 * cssScale)));
-
-        // The menus on the playfield fit its new size now (not a frame later, when their
-        // own ResizeObserver would)
-        for (const o of this.overlays()) this.fitOverlay(o);
-
-        // Resizing the canvas clears it, so draw it again
-        this.requestRender();
-        window.dispatchEvent(new Event('asteroids-layout')); // (the diagnostics panel updates)
+        // Buttons at the sides: each column next to the playfield, at columnTop(), below
+        // the header's blocks when it's split into the side areas
+        const room = main.getBoundingClientRect(), f = frame.getBoundingClientRect();
+        const leftEdge = f.left - OUTLINE - 8, rightEdge = f.right + OUTLINE + 8;
+        if (this.splitHeader) {
+          // The logo and first settings group above the left column, against the
+          // playfield; the second group level with the first, above the right column
+          const place = (el, left, top) => { el.style.left = `${Math.round(left)}px`; el.style.top = `${Math.round(top)}px`; };
+          place(logo, leftEdge - logo.offsetWidth, room.top);
+          const row = room.top + logo.offsetHeight + 6;
+          place(settingsLeft, leftEdge - settingsLeft.offsetWidth, row);
+          place(settingsRight, rightEdge, row);
+        }
+        for (const hand of [leftHand, rightHand]) {
+          hand.style.top = `${Math.round(this.columnTop(hand))}px`;
+          hand.style.left = `${Math.round(hand === leftHand ? leftEdge - hand.offsetWidth : rightEdge)}px`;
+        }
       }
 
       // The Fullscreen button/F key only make sense when the Fullscreen API is supported

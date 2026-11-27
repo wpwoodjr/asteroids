@@ -69,7 +69,6 @@
     header.side { position: fixed; top: 0; left: 0; width: 0; height: 0; padding: 0; margin: 0; }
     header.side > div:first-child, header.side .settings-group { position: absolute; }
     header.side > div:last-child { display: contents; }
-    header.side #brand-logo ~ span { display: none !important; }
     header.side #brand-logo { font-size: 11px; } /* no wider than the settings below it */
     body.sides { padding-top: 0.5rem; }
     /* The footer goes when that makes the playfield bigger (see resize()); the bottom
@@ -83,27 +82,40 @@
        canvas fills the frame exactly and resize() can line both up with the screen's
        pixels (Chrome rounds border widths, so a border can't be lined up) */
     #game-frame { box-shadow: 0 0 0 2px #404040, 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
-    /* A menu grown past the playfield (see setOverlayArea()) looks the same as one that
-       fits: its backdrop covers only the playfield, and the page shows around it.
-       With no frame of its own it needs little padding, leaving more room to fit. */
-    .menu-expanded { background: transparent !important; padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
-    .menu-expanded::before {
-      content: ''; position: absolute; z-index: -1; border-radius: 0.5rem;
-      left: var(--pf-left); top: var(--pf-top); width: var(--pf-width); height: var(--pf-height);
-      background: rgba(0, 0, 0, 0.5);
-    }
     .overlay-fit { transform-origin: center; }
+    /* Menu text is one size on any screen: the menus shrink to fit the playfield (see
+       fitOverlay()). Their big titles are sized to the playfield (cqw: % of its width),
+       between the small and large sizes they had on narrow and wide screens. */
+    [data-overlay] { container-type: size; }
+    .menu-title { font-size: clamp(36px, 8.5cqw, var(--title-max, 48px)); line-height: 1; }
+    #screen-start .menu-title { --title-max: 60px; }
+    /* (Tailwind's sizes, used by the menus but not yet in its built CSS above) */
+    .text-base { font-size: 1rem; line-height: 1.5rem; }
+    .text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
     /* Help: text big enough to read on a phone (it scrolls when it doesn't fit) */
     #screen-help .overlay-fit { font-size: 14px; }
     #screen-help :is(li, p) { font-size: 13px; }
     /* The start, pause, game over, Help and Hall of Fame screens: light enough to see
        the rocks behind */
-    .menu-backdrop { background-color: rgba(0, 0, 0, 0.5); }
+    .menu-backdrop { background-color: rgba(0, 0, 0, var(--menu-dim, 0.5)); }
+    /* Help is a lot of small text: the rocks behind it are dimmed more */
+    #screen-help { --menu-dim: 0.7; }
     /* The Hall of Fame or Help opened from the start, game over or pause screen hides
        that screen, so only the rocks show behind it */
     body:has(:is(#screen-scores, #screen-help):not(.hidden)) :is(#screen-start, #screen-game-over, #screen-pause) { visibility: hidden; }
     .initials-input { letter-spacing: 0.4em; padding-left: calc(0.5rem + 0.4em); user-select: text; -webkit-user-select: text; }
     .initials-input:focus { outline: none; box-shadow: 0 0 12px rgba(234, 179, 8, 0.6); }
+    /* Touch buttons: large on any screen, or small (.small) when resize() picks them or
+       the player does. They keep their size rather than squeeze into a row that's too
+       narrow (resize() then doesn't use that layout). */
+    #touch-controls > div { gap: 0.5rem; flex-shrink: 0; }
+    .touch-btn { flex-shrink: 0; }
+    #btn-touch-left, #btn-touch-right, #btn-touch-thrust { width: 72px; height: 72px; }
+    #btn-touch-fire { width: 80px; height: 80px; }
+    #btn-touch-hyperspace, #btn-touch-pause { width: 80px; height: 48px; }
+    #btn-touch-hyperspace { font-size: 12px; }
+    :is(#btn-touch-left, #btn-touch-right, #btn-touch-fire) span:last-child { font-size: 9px; }
+    #btn-touch-thrust span:last-child { font-size: 8px; }
     /* Two-row touch controls (chosen by resize() when there's room): Hyperspace under
        the rotate buttons, Pause under Thrust and Fire */
     #touch-controls.two-row > div { display: grid; grid-template-columns: auto auto; justify-items: center; }
@@ -111,20 +123,6 @@
     #touch-controls.two-row #btn-touch-pause { grid-column: 1 / span 2; grid-row: 2; }
     #touch-controls.two-row #btn-touch-thrust { grid-column: 1; grid-row: 1; }
     #touch-controls.two-row #btn-touch-fire { grid-column: 2; grid-row: 1; }
-    /* Two rows leave spare width but no spare height, so the round buttons stretch into
-       pills half again as wide as they are tall (narrower on a narrow phone, so they fit) */
-    #touch-controls.two-row :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust) {
-      width: auto; aspect-ratio: 3 / 2; max-width: 21vw;
-    }
-    #touch-controls.two-row #btn-touch-fire { width: auto; aspect-ratio: 3 / 2; max-width: 23vw; }
-    /* ...with the large buttons of a wide screen, when they fit (see resize()) */
-    #touch-controls.big > div { gap: 0.5rem; }
-    #touch-controls.big :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust) { height: 72px; }
-    #touch-controls.big #btn-touch-fire { height: 80px; }
-    #touch-controls.big :is(#btn-touch-hyperspace, #btn-touch-pause) { width: 80px; height: 52px; }
-    #touch-controls.big :is(#btn-touch-hyperspace) { font-size: 12px; }
-    #touch-controls.big :is(#btn-touch-left, #btn-touch-right, #btn-touch-fire) span:last-child { font-size: 9px; }
-    #touch-controls.big #btn-touch-thrust span:last-child { font-size: 8px; }
     /* Buttons at the sides (chosen by resize() when that makes the playfield bigger, as
        on a landscape screen): each hand's buttons in a column beside the playfield,
        placed by resize(). Left: rotate left, rotate right, Hyperspace; right: Fire,
@@ -132,18 +130,16 @@
     #touch-controls.sides { position: fixed; inset: 0; max-width: none; padding: 0; margin: 0; pointer-events: none; }
     #touch-controls.sides > div { position: absolute; flex-direction: column; gap: 0.5rem; pointer-events: auto; }
     #touch-controls.sides > div:last-child { flex-direction: column-reverse; }
-    /* The small buttons of a narrow screen, for side columns on a short screen where the
-       large ones don't fit (see resize()) */
+    /* The small buttons, when they make the playfield bigger enough (see resize()) or
+       the player picks them */
     #touch-controls.small :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust) { width: 52px; height: 52px; }
     #touch-controls.small #btn-touch-fire { width: 60px; height: 60px; }
     #touch-controls.small :is(#btn-touch-hyperspace, #btn-touch-pause) { width: 56px; height: 48px; }
     #touch-controls.small #btn-touch-hyperspace { font-size: 9px; }
     #touch-controls.small :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust, #btn-touch-fire) span:last-child { font-size: 7px; }
     #touch-controls.small > div { gap: 0.25rem; }
-    /* A menu screen enlarged past the playfield (see fitOverlay()) covers the touch
-       buttons below it, which do nothing there anyway (at the sides they stay in view:
-       the menu grows only between them) */
-    body:has(.menu-expanded:not(.hidden)) #touch-controls:not(.sides) { visibility: hidden; }
+    /* The round buttons stretch into pills wherever there's room for them (see resize()) */
+    #touch-controls.pill :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust, #btn-touch-fire) { width: auto; aspect-ratio: var(--pill, 1.5); }
     /* During a replay the ship's buttons do nothing (Pause still works) */
     body.replaying #touch-controls button:not(#btn-touch-pause) { opacity: 0.35; }
     .font-arcade {
@@ -173,7 +169,6 @@
   <header class="w-full max-w-7xl flex items-center justify-between px-3 py-1.5 z-20 text-xs sm:text-sm">
     <div class="flex items-center gap-3">
       <span class="font-arcade text-sm sm:text-base tracking-wider vector-glow text-white" id="brand-logo">ASTEROIDS</span>
-      <span class="hidden lg:inline-block px-2 py-0.5 rounded text-[10px] border border-neutral-700 text-neutral-400">ARCADE VECTOR</span>
     </div>
 
     <!-- Quick action buttons, in two groups (resize() puts one at each side of the
@@ -195,9 +190,6 @@
         <span id="audio-status" class="btn-label hidden sm:inline">SFX</span>
       </button>
 
-      <button id="btn-gravity" class="whitespace-nowrap px-2 py-1 rounded border border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white transition text-xs flex items-center gap-1" title="Cycle Gravity Strength: Off -> Low -> Med -> High (G)">
-        🪐 <span class="btn-label hidden sm:inline">Gravity:</span> <span id="gravity-status" class="text-neutral-500 font-bold">OFF</span>
-      </button>
 
       </div>
       <div class="settings-group flex items-center gap-2">
@@ -231,13 +223,24 @@
       </div>
 
       <!-- Start / Menu Overlay Screen -->
-      <div id="screen-start" data-overlay data-grow class="absolute inset-0 menu-backdrop flex flex-col items-center justify-center p-6 text-center z-30 transition-opacity duration-200">
+      <div id="screen-start" data-overlay class="absolute inset-0 menu-backdrop flex flex-col items-center justify-center px-4 py-2 text-center z-30 transition-opacity duration-200">
         <div class="overlay-fit w-full flex flex-col items-center">
-        <h1 class="font-arcade text-3xl sm:text-5xl md:text-6xl text-white tracking-widest mb-4 vector-glow animate-pulse">ASTEROIDS</h1>
-        <p class="font-arcade text-xs sm:text-sm text-neutral-400 mb-6 tracking-wide">ARCADE VECTOR SHOOTER</p>
+        <h1 class="font-arcade menu-title text-white tracking-widest mb-3 vector-glow animate-pulse">ASTEROIDS</h1>
+        <p class="font-arcade text-sm text-neutral-400 mb-4 tracking-wide">ARCADE VECTOR SHOOTER</p>
 
-        <div class="max-w-md w-full bg-neutral-950/80 border border-neutral-800 rounded p-4 mb-6 text-left text-xs sm:text-sm space-y-2 text-neutral-300">
-          <div class="flex justify-between border-b border-neutral-800 pb-1.5 font-arcade text-[10px] sm:text-xs text-neutral-400">
+        <!-- Play first, so it's in view even when the screen has to scroll -->
+        <div class="flex flex-col items-center mb-4">
+          <button id="btn-start-game" class="font-arcade px-6 py-3 text-base bg-white text-black font-bold rounded hover:bg-neutral-200 active:scale-95 transition tracking-wider shadow-[0_0_20px_rgba(255,255,255,0.6)] cursor-pointer">
+            INSERT COIN / PLAY
+          </button>
+          <p class="mt-1 text-xs text-neutral-400">PRESS SPACEBAR OR CLICK TO START</p>
+          <button id="btn-start-replay-best" class="hidden mt-3 font-arcade px-4 py-2 border border-yellow-500/60 text-yellow-300 text-xs rounded hover:border-yellow-400 hover:text-yellow-200 transition">
+            ▶ WATCH BEST GAME <span data-replay-score></span>
+          </button>
+        </div>
+
+        <div class="max-w-md w-full border border-neutral-800 rounded px-4 py-2 mb-4 text-left text-sm space-y-1.5 text-neutral-300">
+          <div class="flex justify-between border-b border-neutral-800 pb-1.5 font-arcade text-xs text-neutral-400">
             <span>TARGET</span>
             <span>SCORE</span>
           </div>
@@ -267,60 +270,59 @@
           </div>
         </div>
 
-        <div class="flex items-center justify-between w-full max-w-md px-1 mb-5">
-          <div class="text-[11px] sm:text-xs text-neutral-400 font-arcade">
+        <div class="flex items-center justify-between w-full max-w-md px-1">
+          <div class="text-xs text-neutral-400 font-arcade">
             ALL-TIME HIGH: <span id="start-high-score" class="text-yellow-400 font-bold ml-1">00</span>
           </div>
-          <button id="btn-view-leaderboard" class="px-2.5 py-1 text-[10px] sm:text-xs border border-yellow-600/50 hover:border-yellow-400 text-yellow-300 rounded font-arcade flex items-center gap-1 transition">
+          <button id="btn-view-leaderboard" class="px-2.5 py-1 text-xs border border-yellow-600/50 hover:border-yellow-400 text-yellow-300 rounded font-arcade flex items-center gap-1 transition">
             🏆 HALL OF FAME
           </button>
         </div>
 
-        <button id="btn-start-game" class="font-arcade px-6 py-3.5 text-sm sm:text-base bg-white text-black font-bold rounded hover:bg-neutral-200 active:scale-95 transition tracking-wider shadow-[0_0_20px_rgba(255,255,255,0.6)] cursor-pointer">
-          INSERT COIN / PLAY
-        </button>
-        <p class="mt-3 text-xs text-neutral-500">PRESS SPACEBAR OR CLICK TO START</p>
-        <button id="btn-start-replay-best" class="hidden mt-4 font-arcade px-4 py-2 border border-yellow-500/60 text-yellow-300 text-xs rounded hover:border-yellow-400 hover:text-yellow-200 transition">
-          ▶ WATCH BEST GAME <span data-replay-score></span>
-        </button>
         </div>
       </div>
 
       <!-- Pause Overlay Screen -->
-      <div id="screen-pause" data-overlay class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center p-6 text-center z-30">
+      <div id="screen-pause" data-overlay class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center px-4 py-2 text-center z-30">
         <div class="overlay-fit w-full flex flex-col items-center">
-        <h2 class="font-arcade text-3xl sm:text-4xl text-white tracking-widest mb-6 vector-glow">GAME PAUSED</h2>
+        <h2 class="font-arcade text-4xl text-white tracking-widest mb-6 vector-glow">GAME PAUSED</h2>
         <div class="flex flex-col gap-3 w-48">
-          <button id="btn-resume-game" class="font-arcade py-2.5 px-4 bg-white text-black text-xs sm:text-sm font-bold rounded hover:bg-neutral-200 active:scale-95 transition">
+          <button id="btn-resume-game" class="font-arcade py-2.5 px-4 bg-white text-black text-sm font-bold rounded hover:bg-neutral-200 active:scale-95 transition">
             RESUME (P)
           </button>
           <button id="btn-restart-from-pause" class="font-arcade py-2 px-4 border border-neutral-600 text-neutral-300 text-xs rounded hover:border-neutral-400 hover:text-white transition">
             RESTART (R)
           </button>
+          <button id="btn-gravity" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Cycle Gravity Strength: Off -> Low -> Med -> High (G)">
+            GRAVITY: <span id="gravity-status" class="text-neutral-500 font-bold">OFF</span>
+          </button>
           <!-- Layout settings (see resize()): each cycles through its choices -->
           <button id="btn-button-size" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Touch button size: Auto, Large or Small">
             BUTTONS: AUTO
           </button>
-          <button id="btn-view-shape" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Playfield shape: Auto, Landscape (4:3) or Portrait (3:4)">
-            SHAPE: AUTO
+          <button id="btn-button-place" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Touch button position: Auto, at the Sides of the playfield, or Below it">
+            PLACE: AUTO
+          </button>
+          <button id="btn-view-shape" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Playfield orientation: Auto, Landscape (4:3) or Portrait (3:4)">
+            ORIENT: AUTO
           </button>
         </div>
         </div>
       </div>
 
       <!-- Game Over Screen -->
-      <div id="screen-game-over" data-overlay data-grow class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center p-6 text-center z-30">
+      <div id="screen-game-over" data-overlay class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center px-4 py-2 text-center z-30">
         <div class="overlay-fit w-full flex flex-col items-center">
-        <h2 class="font-arcade text-3xl sm:text-5xl text-red-500 tracking-widest mb-3 vector-glow">GAME OVER</h2>
+        <h2 class="font-arcade menu-title text-red-500 tracking-widest mb-3 vector-glow">GAME OVER</h2>
         <div id="new-high-score-banner" class="hidden mb-4 px-3 py-1 bg-yellow-500/20 border border-yellow-500 text-yellow-300 font-arcade text-xs rounded animate-bounce">
           ★ NEW HIGH SCORE! ★
         </div>
-        <div class="bg-neutral-950/90 border border-neutral-800 rounded p-5 mb-6 w-full max-w-xs text-center space-y-3">
+        <div class="border border-neutral-800 rounded px-4 py-1.5 mb-4 w-full max-w-xs text-center space-y-1.5">
           <div>
             <div class="text-neutral-400 text-xs">FINAL SCORE</div>
-            <div id="game-over-score" class="font-arcade text-2xl text-white mt-1">00</div>
+            <div id="game-over-score" class="font-arcade text-2xl leading-tight text-white">00</div>
           </div>
-          <div class="flex justify-around pt-2 border-t border-neutral-800 text-xs">
+          <div class="flex justify-around pt-1 border-t border-neutral-800 text-xs">
             <div>
               <span class="text-neutral-400">WAVE:</span>
               <span id="game-over-wave" class="text-white font-bold ml-1">1</span>
@@ -333,21 +335,21 @@
         </div>
 
         <!-- Shown when the score makes the Hall of Fame (see askInitials) -->
-        <div id="initials-entry" class="hidden mb-5 flex flex-col items-center">
-          <label for="initials-input" class="font-arcade text-[10px] sm:text-xs text-yellow-300 mb-3">TOP 10! ENTER YOUR INITIALS</label>
+        <div id="initials-entry" class="hidden mb-4 flex flex-col items-center">
+          <label for="initials-input" class="font-arcade text-xs text-yellow-300 mb-1">TOP 10! ENTER YOUR INITIALS</label>
           <div class="flex items-center gap-2">
             <input id="initials-input" type="text" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done"
               class="initials-input font-arcade text-2xl text-center text-white bg-neutral-950 border-2 border-yellow-500 rounded px-2 py-2 w-48">
             <button id="btn-initials-ok" class="font-arcade px-3 py-3 border border-yellow-500/60 text-yellow-300 text-xs rounded hover:border-yellow-400 hover:text-yellow-200 transition">OK</button>
           </div>
-          <div class="text-neutral-500 text-[10px] mt-1">ENTER TO SAVE</div>
+          <div class="text-neutral-400 text-xs mt-1">ENTER TO SAVE</div>
         </div>
 
         <div class="flex items-center gap-3">
-          <button id="btn-play-again" class="font-arcade px-5 py-3 bg-white text-black text-xs sm:text-sm font-bold rounded hover:bg-neutral-200 active:scale-95 transition tracking-wider shadow-[0_0_15px_rgba(255,255,255,0.6)] cursor-pointer">
+          <button id="btn-play-again" class="font-arcade px-5 py-2.5 bg-white text-black text-xs font-bold rounded hover:bg-neutral-200 active:scale-95 transition tracking-wider shadow-[0_0_15px_rgba(255,255,255,0.6)] cursor-pointer">
             PLAY AGAIN (R)
           </button>
-          <button id="btn-game-over-scores" class="font-arcade px-4 py-3 border border-yellow-500/60 text-yellow-300 text-xs rounded hover:border-yellow-400 hover:text-yellow-200 transition">
+          <button id="btn-game-over-scores" class="font-arcade px-4 py-2.5 border border-yellow-500/60 text-yellow-300 text-xs rounded hover:border-yellow-400 hover:text-yellow-200 transition">
             🏆 SCORES
           </button>
         </div>
@@ -363,16 +365,16 @@
       </div>
 
       <!-- Help / Instructions Modal Screen -->
-      <div id="screen-help" data-overlay data-grow data-no-shrink class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center p-6 z-40">
-        <div class="overlay-fit max-w-lg w-full bg-neutral-950/80 border border-neutral-700 rounded-lg p-5 text-neutral-300 text-xs sm:text-sm">
+      <div id="screen-help" data-overlay data-no-shrink class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center px-4 py-2 z-40">
+        <div class="overlay-fit max-w-lg w-full border border-neutral-700 rounded-lg p-5 text-neutral-300 text-sm">
           <div class="flex justify-between items-center mb-4 border-b border-neutral-800 pb-2">
-            <h3 class="font-arcade text-sm sm:text-base text-white vector-glow">HOW TO PLAY</h3>
+            <h3 class="font-arcade text-base text-white vector-glow">HOW TO PLAY</h3>
             <button id="btn-close-help" class="text-neutral-400 hover:text-white font-bold text-lg px-2">✕</button>
           </div>
           <div class="space-y-3">
             <div>
               <h4 class="font-bold text-white mb-1">KEYBOARD CONTROLS</h4>
-              <ul class="grid grid-cols-2 gap-y-1.5 text-neutral-300 text-[11px] sm:text-xs">
+              <ul class="grid grid-cols-2 gap-y-1.5 text-neutral-300 text-xs">
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">A / ←</span> : Rotate Left</li>
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">D / →</span> : Rotate Right</li>
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">W / ↑</span> : Thrust Forward</li>
@@ -384,13 +386,13 @@
                 <li><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">G</span> : Gravity Mode</li>
                 <li id="help-fullscreen-key"><span class="text-white font-mono bg-neutral-900 px-1 border border-neutral-700 rounded">F</span> : Fullscreen</li>
               </ul>
-              <p class="mt-1 text-neutral-400 text-[11px] sm:text-xs">Mouse: left click fires, hold the right button to thrust.</p>
+              <p class="mt-1 text-neutral-400 text-xs">Mouse: left click fires, hold the right button to thrust.</p>
             </div>
             <div class="border-t border-neutral-800 pt-2">
               <h4 class="font-bold text-white mb-1">PRO SURVIVAL TIPS</h4>
               <p class="text-neutral-400 text-[11px] leading-relaxed">
                 • Arcade Inertia: Your ship keeps drifting after you let go of thrust and only slowly coasts to a stop (no friction in Gravity Mode). To brake fast, rotate 180° and counter-thrust.<br>
-                • Gravity Mode [G]: cycles through OFF, LOW, MED, and HIGH gravity wells. Slingshot around the planet, and shoot asteroids before they fall in: each one it swallows costs you its points!<br>
+                • Gravity Mode [G, or Gravity in the pause menu]: cycles through OFF, LOW, MED, and HIGH gravity wells. Slingshot around the planet, and shoot asteroids before they fall in: each one it swallows costs you its points!<br>
                 • Hyperspace is a gamble: you vanish for a moment and reappear at random, and the jump can destroy your ship. It's riskier when few asteroids remain.<br>
                 • Small saucers are deadly accurate: destroy them before they line up a shot!<br>
                 • Watch your own shots: they wrap around the screen and can hit your ship. Saucer shots smash asteroids too.<br>
@@ -407,17 +409,17 @@
       </div>
 
       <!-- High Scores / Hall of Fame Modal Screen -->
-      <div id="screen-scores" data-overlay data-grow class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center p-6 z-40">
-        <div class="overlay-fit max-w-md w-full bg-neutral-950 border border-neutral-700 rounded-lg p-5 text-neutral-300 text-xs sm:text-sm">
+      <div id="screen-scores" data-overlay class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center px-4 py-2 z-40">
+        <div class="overlay-fit max-w-md w-full border border-neutral-700 rounded-lg p-5 text-neutral-300 text-sm">
           <div class="flex justify-between items-center mb-4 border-b border-neutral-800 pb-2">
-            <h3 class="font-arcade text-sm sm:text-base text-yellow-400 vector-glow flex items-center gap-2">
+            <h3 class="font-arcade text-base text-yellow-400 vector-glow flex items-center gap-2">
               <span>🏆</span> ARCADE HALL OF FAME
             </h3>
             <button id="btn-close-scores" class="text-neutral-400 hover:text-white font-bold text-lg px-2">✕</button>
           </div>
           
           <div class="space-y-2 mb-5">
-            <div class="grid grid-cols-4 text-[10px] sm:text-xs font-arcade text-neutral-500 pb-1.5 border-b border-neutral-800">
+            <div class="grid grid-cols-4 text-xs font-arcade text-neutral-400 pb-1.5 border-b border-neutral-800">
               <span>RANK</span>
               <span>NAME</span>
               <span>WAVE</span>
@@ -429,7 +431,7 @@
           </div>
 
           <div class="flex justify-between items-center pt-3 border-t border-neutral-800">
-            <button id="btn-reset-scores" class="text-[10px] text-neutral-500 hover:text-red-400 transition underline cursor-pointer">
+            <button id="btn-reset-scores" class="text-[10px] text-neutral-400 hover:text-red-400 transition underline cursor-pointer">
               Reset Scores
             </button>
             <button id="btn-scores-ok" class="font-arcade px-5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded text-xs">
@@ -444,33 +446,33 @@
   <!-- Mobile / Touch Controls Overlay (always visible) -->
   <div id="touch-controls" class="w-full max-w-7xl flex items-center justify-between px-1 sm:px-14 md:px-20 mb-1 select-none z-20">
     <!-- Left Hand: Rotation & Hyperspace -->
-    <div class="flex items-center gap-1 sm:gap-2">
-      <button id="btn-touch-left" class="touch-btn w-[52px] h-[52px] sm:w-[72px] sm:h-[72px] rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
+    <div class="flex items-center">
+      <button id="btn-touch-left" class="touch-btn rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
         <span>⟲</span>
-        <span class="text-[7px] sm:text-[9px] text-neutral-400 -mt-1 font-arcade">LEFT</span>
+        <span class="text-neutral-400 -mt-1 font-arcade">LEFT</span>
       </button>
-      <button id="btn-touch-right" class="touch-btn w-[52px] h-[52px] sm:w-[72px] sm:h-[72px] rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
+      <button id="btn-touch-right" class="touch-btn rounded-full bg-neutral-900/90 border-2 border-neutral-600 text-white flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
         <span>⟳</span>
-        <span class="text-[7px] sm:text-[9px] text-neutral-400 -mt-1 font-arcade">RIGHT</span>
+        <span class="text-neutral-400 -mt-1 font-arcade">RIGHT</span>
       </button>
-      <button id="btn-touch-hyperspace" class="touch-btn w-14 h-12 sm:w-20 rounded-lg bg-neutral-900/80 border border-purple-500/60 text-purple-300 flex flex-col items-center justify-center text-[9px] sm:text-xs leading-tight font-arcade active:border-purple-400">
+      <button id="btn-touch-hyperspace" class="touch-btn rounded-lg bg-neutral-900/80 border border-purple-500/60 text-purple-300 flex flex-col items-center justify-center leading-tight font-arcade active:border-purple-400">
         <span>HYPER</span>
         <span>SPACE</span>
       </button>
     </div>
 
     <!-- Right Hand: Pause, Thrust & Fire (Pause on the inner side, away from Fire) -->
-    <div class="flex items-center gap-1 sm:gap-2">
-      <button id="btn-touch-pause" class="touch-btn w-14 h-12 sm:w-20 rounded-lg bg-neutral-900/80 border border-neutral-700 text-neutral-400 flex items-center justify-center text-lg font-bold">
+    <div class="flex items-center">
+      <button id="btn-touch-pause" class="touch-btn rounded-lg bg-neutral-900/80 border border-neutral-700 text-neutral-400 flex items-center justify-center text-lg font-bold">
         ⏸
       </button>
-      <button id="btn-touch-thrust" class="touch-btn w-[52px] h-[52px] sm:w-[72px] sm:h-[72px] rounded-full bg-neutral-900/90 border-2 border-emerald-600 text-emerald-400 flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
+      <button id="btn-touch-thrust" class="touch-btn rounded-full bg-neutral-900/90 border-2 border-emerald-600 text-emerald-400 flex flex-col items-center justify-center font-bold text-lg active:border-white shadow-lg">
         <span>▲</span>
-        <span class="text-[6px] sm:text-[8px] text-emerald-400 -mt-1 font-arcade">THRUST</span>
+        <span class="text-emerald-400 -mt-1 font-arcade">THRUST</span>
       </button>
-      <button id="btn-touch-fire" class="touch-btn w-[60px] h-[60px] sm:w-20 sm:h-20 rounded-full bg-neutral-900/90 border-2 border-red-500 text-red-400 flex flex-col items-center justify-center font-bold text-xl active:border-white shadow-lg">
+      <button id="btn-touch-fire" class="touch-btn rounded-full bg-neutral-900/90 border-2 border-red-500 text-red-400 flex flex-col items-center justify-center font-bold text-xl active:border-white shadow-lg">
         <span>●</span>
-        <span class="text-[8px] sm:text-[9px] text-red-400 -mt-1 font-arcade">FIRE</span>
+        <span class="text-red-400 -mt-1 font-arcade">FIRE</span>
       </button>
     </div>
   </div>
@@ -989,13 +991,17 @@
     // the playfield, as in the arcade, before the game over screen: long enough for the
     // explosion to play out and shots still in flight to land
     const GAME_OVER_DELAY = 3;
-    const MENU_GROW_BELOW = 0.8; // a menu screen grows past the playfield rather than shrink below this
+    const MENU_MIN_SCALE = 0.5; // a menu shrinks to fit the playfield down to this size, then scrolls instead
     const UPRIGHT_GAIN = 1.05; // show the playfield upright when that makes its area this much bigger
     const SMALL_GAIN = 1.1; // use the small touch buttons when that makes the playfield's area this much bigger
+    const HEADER_CLEAR = 24; // px between the header's buttons and touch buttons below them, so a tap doesn't hit the wrong one
     const SIDES_LOSS = 0.95; // touch buttons go at the sides unless below makes the playfield's area bigger than this allows
     // The player's layout choices (pause menu); 'auto' leaves them to resize()
     const BUTTON_SIZES = ['auto', 'large', 'small'];
     const VIEW_SHAPES = ['auto', 'landscape', 'portrait'];
+    const BUTTON_PLACES = ['auto', 'sides', 'below'];
+    // The pause menu's layout choices, the values each may take
+    const LAYOUT_CHOICES = { buttonSize: BUTTON_SIZES, buttonPlace: BUTTON_PLACES, viewShape: VIEW_SHAPES };
     const OUTLINE = 2; // the playfield's outline, in CSS px (drawn outside #game-frame; see its CSS)
     const MENU_FPS = 30; // frame rate behind the start and game over screens
 
@@ -1799,6 +1805,10 @@
         this.rotated = false; // shown upright on narrow screens (see viewW)
         this.buttonSize = 'auto'; // the player's choices, from the pause menu (see resize())
         this.viewShape = 'auto';
+        this.buttonPlace = 'auto';
+        // The player's layout choices are kept separately for portrait windows (taller
+        // than wide) and landscape ones, as what suits one rarely suits the other
+        this.layoutChoices = { portrait: {}, landscape: {} };
 
         // Game State
         this.state = 'START';
@@ -1970,6 +1980,8 @@
         document.getElementById('btn-restart-from-pause').addEventListener('click', () => this.startGame());
         document.getElementById('btn-button-size').addEventListener('click', () =>
           this.setLayoutChoice('buttonSize', BUTTON_SIZES[(BUTTON_SIZES.indexOf(this.buttonSize) + 1) % BUTTON_SIZES.length]));
+        document.getElementById('btn-button-place').addEventListener('click', () =>
+          this.setLayoutChoice('buttonPlace', BUTTON_PLACES[(BUTTON_PLACES.indexOf(this.buttonPlace) + 1) % BUTTON_PLACES.length]));
         document.getElementById('btn-view-shape').addEventListener('click', () =>
           this.setLayoutChoice('viewShape', VIEW_SHAPES[(VIEW_SHAPES.indexOf(this.viewShape) + 1) % VIEW_SHAPES.length]));
         document.getElementById('btn-play-again').addEventListener('click', () => this.startGame());
@@ -2017,11 +2029,10 @@
         if (header.scrollWidth > header.clientWidth + 1) header.classList.add('wrap');
       }
 
-      // Shrink an overlay's content (start, pause, game over, help, scores) to fit the
-      // playfield instead of letting it be cut off. If it would have to shrink, a menu
-      // screen (data-grow) may first grow past the playfield to cover the whole area between the
-      // header and footer (the touch buttons do nothing on these screens): on a narrow
-      // phone in portrait that's far taller than the playfield.
+      // Fit an overlay's content (start, pause, game over, help, scores) on the
+      // playfield instead of letting it be cut off: it shrinks to fit, or when that would
+      // make its text too small, it scrolls at full size. Menus never go past the
+      // playfield.
       fitOverlay(overlay) {
         const content = overlay.querySelector('.overlay-fit');
         if (!content || overlay.classList.contains('hidden')) return;
@@ -2031,64 +2042,16 @@
           const availW = overlay.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
           return Math.min(1, availH / content.offsetHeight, availW / content.offsetWidth);
         };
-        this.setOverlayArea(overlay, null); // inside the playfield
-        let s = fit();
-        const noShrink = 'noShrink' in overlay.dataset;
-        // Shrinking a little keeps it on the playfield; it grows only when it would have
-        // to shrink a lot (MENU_GROW_BELOW), as on a narrow phone in portrait
-        if (s < (noShrink ? 0.999 : MENU_GROW_BELOW) && 'grow' in overlay.dataset) {
-          const area = this.menuArea();
-          const frame = document.getElementById('game-frame').getBoundingClientRect();
-          if (area.height > frame.height + 1 || area.width > frame.width + 1) {
-            this.setOverlayArea(overlay, area);
-            s = fit();
-          }
-        }
-        // Shrinking below ~55% makes text unreadable; scroll the overlay instead (Help,
-        // marked data-no-shrink, scrolls rather than shrink at all)
-        const scroll = s < (noShrink ? 0.999 : 0.55);
+        const s = fit();
+        // Shrinking further makes text too small to read; scroll the overlay instead
+        // (Help, marked data-no-shrink, scrolls rather than shrink at all)
+        const scroll = s < ('noShrink' in overlay.dataset ? 0.999 : MENU_MIN_SCALE);
         content.style.transform = !scroll && s < 0.999 ? `scale(${s})` : '';
         overlay.style.overflowY = scroll ? 'auto' : '';
         overlay.style.justifyContent = scroll ? 'flex-start' : '';
       }
 
-      // The area a menu screen may grow to: between the header and the footer, across
-      // the play area, or between the touch buttons when they're at the sides (they stay
-      // in view there)
-      menuArea() {
-        const header = document.querySelector('header').getBoundingClientRect();
-        const main = document.querySelector('main').getBoundingClientRect();
-        const touch = document.getElementById('touch-controls');
-        let left = main.left, right = main.right;
-        if (touch.classList.contains('sides')) {
-          left = touch.children[0].getBoundingClientRect().right + 4;
-          right = touch.children[1].getBoundingClientRect().left - 4;
-        }
-        const top = document.querySelector('header').classList.contains('side') ? main.top : header.bottom + 4;
-        const bottom = main.bottom;
-        return { left, top, width: right - left, height: bottom - top };
-      }
-
-      // Place an overlay over the given screen area, or back over the playfield (null)
-      setOverlayArea(overlay, area) {
-        const st = overlay.style;
-        if (!area) {
-          for (const k of ['position', 'left', 'top', 'width', 'height', 'borderRadius']) st[k] = '';
-          overlay.classList.remove('menu-expanded');
-          return;
-        }
-        Object.assign(st, { position: 'fixed', left: `${area.left}px`, top: `${area.top}px`,
-          width: `${area.width}px`, height: `${area.height}px`, borderRadius: '0.5rem' });
-        // Where the playfield is inside it, for its backdrop (see .menu-expanded in the
-        // CSS); touch buttons below it are hidden while it's enlarged
-        const f = document.getElementById('game-frame').getBoundingClientRect();
-        for (const [k, v] of [['left', f.left - area.left], ['top', f.top - area.top], ['width', f.width], ['height', f.height]])
-          st.setProperty(`--pf-${k}`, `${v}px`);
-        overlay.classList.add('menu-expanded');
-      }
-
-      // The screens shown over the playfield, marked data-overlay in the page; those that
-      // may grow past it when they don't fit (the menus, not Pause) are marked data-grow
+      // The screens shown over the playfield, marked data-overlay in the page
       overlays() {
         return [...document.querySelectorAll('[data-overlay]')];
       }
@@ -2114,6 +2077,7 @@
         // always update it when an app's window is resized (on a Googlebook it stayed 51 px
         // taller than the window, pushing the touch buttons off the bottom).
         document.body.style.height = `${window.innerHeight}px`;
+        this.useLayoutChoices(); // (the window may have turned between portrait and landscape)
         this.fitChrome();
         const main = document.querySelector('main');
         const frame = document.getElementById('game-frame');
@@ -2138,7 +2102,7 @@
         const header = document.querySelector('header');
         const logo = header.children[0], [settingsLeft, settingsRight] = header.querySelectorAll('.settings-group');
         touch.style.transform = '';
-        touch.classList.remove('two-row', 'big', 'small');
+        touch.classList.remove('two-row', 'small', 'pill');
         for (const el of [leftHand, rightHand, logo, settingsLeft, settingsRight]) el.style.left = el.style.top = '';
 
         // Lays the page out with the touch buttons below the playfield, or in a column at
@@ -2157,8 +2121,12 @@
         // Whether each side's things fit, one above the other, in the play area's height
         const sidesFit = (splitHeader) => {
           const height = main.getBoundingClientRect().height;
-          const left = leftHand.offsetHeight + (splitHeader ? logo.offsetHeight + 6 + settingsLeft.offsetHeight + 8 : 0);
-          const right = rightHand.offsetHeight + (splitHeader ? settingsRight.offsetHeight + 8 : 0);
+          // (with the header on top, the columns keep HEADER_CLEAR below it: <main> itself
+          // starts a little below the header)
+          const belowHeader = Math.max(0, HEADER_CLEAR - (main.offsetTop - header.offsetTop - header.offsetHeight));
+          const left = leftHand.offsetHeight + (splitHeader ? logo.offsetHeight + 6 + settingsLeft.offsetHeight + HEADER_CLEAR : belowHeader);
+          // (the right settings block sits level with the left one, below the logo)
+          const right = rightHand.offsetHeight + (splitHeader ? logo.offsetHeight + 6 + settingsRight.offsetHeight + HEADER_CLEAR : belowHeader);
           return Math.max(left, right) <= height;
         };
 
@@ -2200,29 +2168,40 @@
         // Each button size is tried below and at the sides; the sides win unless below
         // makes the playfield clearly bigger (by more than SIDES_LOSS allows), as the
         // buttons at the sides leave the playfield centred with the hands either side of
-        // it. The player's Buttons choice, if not Auto, then decides the size.
+        // it. The player's Buttons and Place choices, if not Auto, decide instead.
         // Every layout tried, for the diagnostics panel's table
         const tried = this.layoutsTried = [];
         const bestLayout = (aspect, twoRows) => {
           targetAspect = aspect;
           const forSize = (small) => {
             setSides(false, false, small);
-            touch.classList.toggle('two-row', twoRows);
             const row = (f, where, header) => (tried.push({ shape: twoRows ? '3:4' : '4:3', small, where, header, ...f }), tried[tried.length - 1]);
-            const below = { ...withFooter(fitFrame), small, sides: false };
-            below.row = row(below, 'below', 'top');
+            // Below: on one row for a 4:3 playfield, or two when one is too wide for the
+            // screen (and always two for an upright one); not at all if even two are
+            const fitsAcross = () => touch.scrollWidth <= touch.clientWidth + 1;
+            touch.classList.toggle('two-row', twoRows);
+            if (!fitsAcross()) touch.classList.add('two-row');
+            const belowRows = touch.classList.contains('two-row');
+            let below = fitsAcross() ? { ...withFooter(fitFrame), small, sides: false, belowRows } : null;
             touch.classList.remove('two-row');
+            if (below) below.row = row(below, 'below', 'top');
+            else row({ w: 0, h: 0 }, 'below', 'no room');
             const side = bestSides(small);
             if (side) side.row = row(side, 'sides', side.split ? 'sides' : 'top');
             else row({ w: 0, h: 0 }, 'sides', 'no room');
-            const sidesGain = side ? area(side) / area(below) : null;
-            return { ...(side && sidesGain >= SIDES_LOSS ? { ...side, sides: true } : below), sidesGain };
+            if (!below && !side) return null;
+            const sidesGain = side && below ? area(side) / area(below) : null;
+            // (the player's Place choice, if not Auto, decides where, when there's room there)
+            const atSides = !below || (side && (this.buttonPlace === 'auto' ? sidesGain >= SIDES_LOSS : this.buttonPlace === 'sides'));
+            return { ...(atSides ? { ...side, sides: true } : below), sidesGain };
           };
           const large = forSize(false), small = forSize(true);
           const smallGain = large && small ? small.bare / large.bare : null;
           // (both sizes are measured, for the diagnostics panel, even when the player chose one)
-          const best = this.buttonSize === 'large' ? large : this.buttonSize === 'small' ? small
-            : smallGain >= SMALL_GAIN ? small : large;
+          // (a size with no room anywhere gives way to the other; with neither, the
+          // playfield gets no room either, and resize() leaves the layout as it is)
+          const best = (this.buttonSize === 'large' ? large : this.buttonSize === 'small' ? small
+            : smallGain >= SMALL_GAIN ? small : large) || large || small || { w: 0, h: 0, ok: false };
           return { ...best, twoRows, smallGain };
         };
         const wide = bestLayout(this.width / this.height, false);
@@ -2244,7 +2223,7 @@
         this.splitHeader = atSides && chosen.split;
         this.smallButtons = chosen.small;
         setSides(atSides, this.splitHeader, this.smallButtons);
-        if (!atSides && this.rotated) touch.classList.add('two-row');
+        if (!atSides && chosen.belowRows) touch.classList.add('two-row');
         this.noFooter = chosen.noFooter;
         setFooter(this.noFooter);
 
@@ -2252,7 +2231,7 @@
         // (under the rotate and thrust/fire buttons) only if that doesn't make the
         // playfield smaller. The playfield may move up to make room.
         let fit = fitFrame();
-        if (!this.rotated && !atSides) {
+        if (!this.rotated && !atSides && !chosen.belowRows) {
           touch.classList.add('two-row');
           const twoRowWidth = fitFrame().w;
           touch.classList.remove('two-row');
@@ -2262,13 +2241,23 @@
             fit = fitFrame();
           }
         }
-        // Two rows have room across for the large buttons of a wide screen; use them
-        // when they don't make the playfield smaller either
-        if (touch.classList.contains('two-row') && fit.ok && !this.smallButtons) {
-          touch.classList.add('big');
-          const big = fitFrame();
-          if (big.w >= fit.w - 0.5) fit = big;
-          else touch.classList.remove('big');
+        // The round buttons stretch into pills (easier to hit) wherever there's room for
+        // them: when the playfield stays the same size and the buttons still fit across.
+        // The widest that fits, up to half again as wide as tall.
+        touch.style.removeProperty('--pill');
+        if (fit.ok) {
+          const setPills = (shape) => {
+            touch.classList.toggle('pill', !!shape);
+            if (shape) touch.style.setProperty('--pill', shape);
+            if (atSides) setSides(true, this.splitHeader, this.smallButtons); // (the side areas' width follows the buttons)
+          };
+          let pills = false;
+          for (const shape of [1.5, 1.4, 1.3, 1.2, 1.1]) {
+            setPills(shape);
+            const pill = fitFrame();
+            if (pill.w >= fit.w - 0.5 && pill.h >= fit.h - 0.5 && (atSides || touch.scrollWidth <= touch.clientWidth + 1)) { fit = pill; pills = true; break; }
+          }
+          if (!pills) setPills(null);
         }
         if (!fit.ok) return;
         const frameWidth = fit.w, frameHeight = fit.h;
@@ -2286,13 +2275,24 @@
         const pixelsH = fit.byWidth ? Math.round(pixelsW / shape) : Math.floor((frameHeight - 2 * OUTLINE) * dpr);
         frame.style.width = `${pixelsW / dpr}px`;
         frame.style.height = `${pixelsH / dpr}px`;
-        // Nudged with relative offsets, not a transform: a transform would make the
-        // menus' position:fixed (when they grow past the playfield) relative to the frame
+        // Nudged with relative offsets, not a transform
         frame.style.left = frame.style.top = '';
         const at = frame.getBoundingClientRect();
         const nudge = (v) => (Math.round(v * dpr) - v * dpr) / dpr;
         frame.style.left = `${nudge(at.left)}px`;
         frame.style.top = `${nudge(at.top)}px`;
+
+        // The header sits just above the playfield, as it does when there's no room to
+        // spare: when there is, it moves down to it, which also keeps it clear of a camera
+        // cutout at the top of the screen. (Not so far that the side buttons below it no
+        // longer fit.)
+        header.style.transform = '';
+        let down = Math.round(frame.getBoundingClientRect().top - OUTLINE - 4 - header.getBoundingClientRect().bottom);
+        if (atSides) {
+          const tallest = Math.max(leftHand.offsetHeight, rightHand.offsetHeight);
+          down = Math.min(down, Math.floor(main.getBoundingClientRect().bottom - tallest - HEADER_CLEAR - header.getBoundingClientRect().bottom));
+        }
+        if (down > 0 && !this.splitHeader) header.style.transform = `translateY(${down}px)`;
 
         // Keep the touch buttons just under the playfield: when the playfield is limited
         // by width it doesn't reach the bottom of its area, so lift the buttons up to it
@@ -2307,7 +2307,9 @@
           // the play area
           const room = main.getBoundingClientRect(), f = frame.getBoundingClientRect();
           const leftEdge = f.left - OUTLINE - 8, rightEdge = f.right + OUTLINE + 8;
-          const tops = new Map([[leftHand, room.top], [rightHand, room.top]]);
+          // (HEADER_CLEAR below the header's buttons, so a tap doesn't hit the wrong one)
+          const belowHeader = header.getBoundingClientRect().bottom + HEADER_CLEAR;
+          const tops = new Map([[leftHand, belowHeader], [rightHand, belowHeader]]);
           if (this.splitHeader) {
             // The logo and first settings group above the left column, against the
             // playfield; the second group level with the first, above the right column
@@ -2316,8 +2318,8 @@
             const row = room.top + logo.offsetHeight + 6;
             place(settingsLeft, leftEdge - settingsLeft.offsetWidth, row);
             place(settingsRight, rightEdge, row);
-            tops.set(leftHand, row + settingsLeft.offsetHeight + 8);
-            tops.set(rightHand, row + settingsRight.offsetHeight + 8);
+            tops.set(leftHand, row + settingsLeft.offsetHeight + HEADER_CLEAR);
+            tops.set(rightHand, row + settingsRight.offsetHeight + HEADER_CLEAR);
           }
           const bottom = room.bottom;
           for (const hand of [leftHand, rightHand]) {
@@ -2328,13 +2330,6 @@
             hand.style.left = `${Math.round(hand === leftHand ? leftEdge - handBox.width : rightEdge)}px`;
           }
         }
-
-        // The header sits just above the playfield, as it does when there's no room to
-        // spare: when there is, it moves down to it, which also keeps it clear of a camera
-        // cutout at the top of the screen
-        header.style.transform = '';
-        const down = Math.round(frame.getBoundingClientRect().top - OUTLINE - 4 - header.getBoundingClientRect().bottom);
-        if (down > 0 && !this.splitHeader) header.style.transform = `translateY(${down}px)`;
 
         // One canvas pixel per screen pixel, plus a spare pixel on every side that the
         // frame crops off: the browser blends a canvas's outermost pixels with what's
@@ -2403,23 +2398,42 @@
         if (Number.isInteger(saved.gravity) && saved.gravity >= 0 && saved.gravity < GRAVITY_LEVELS.length) {
           this.setGravityLevel(saved.gravity, false);
         }
-        if (BUTTON_SIZES.includes(saved.buttonSize)) this.buttonSize = saved.buttonSize;
-        if (VIEW_SHAPES.includes(saved.viewShape)) this.viewShape = saved.viewShape;
+        for (const orientation of ['portrait', 'landscape']) {
+          const kept = saved.layout && saved.layout[orientation];
+          for (const [key, values] of Object.entries(LAYOUT_CHOICES)) {
+            if (kept && values.includes(kept[key])) this.layoutChoices[orientation][key] = kept[key];
+          }
+        }
+        this.useLayoutChoices();
+      }
+
+      // The current window's orientation: its layout choices apply
+      layoutOrientation() {
+        return innerWidth >= innerHeight ? 'landscape' : 'portrait';
+      }
+
+      // Take up the layout choices made for windows of this orientation (Auto for any
+      // not made)
+      useLayoutChoices() {
+        const chosen = this.layoutChoices[this.layoutOrientation()];
+        for (const key of Object.keys(LAYOUT_CHOICES)) this[key] = chosen[key] || 'auto';
         this.showLayoutChoices();
       }
 
-      // The pause menu's touch button size and playfield shape: lay out again with the
-      // new choice, and remember it
+      // A pause menu layout choice (button size and place, playfield shape): remember it
+      // for windows of this orientation, and lay out again with it
       setLayoutChoice(key, value) {
-        this[key] = value;
-        this.showLayoutChoices();
+        const chosen = this.layoutChoices[this.layoutOrientation()];
+        if (value === 'auto') delete chosen[key];
+        else chosen[key] = value;
         this.persistSettings();
         this.resize();
       }
 
       showLayoutChoices() {
         document.getElementById('btn-button-size').textContent = `BUTTONS: ${this.buttonSize.toUpperCase()}`;
-        document.getElementById('btn-view-shape').textContent = `SHAPE: ${this.viewShape.toUpperCase()}`;
+        document.getElementById('btn-view-shape').textContent = `ORIENT: ${this.viewShape.toUpperCase()}`;
+        document.getElementById('btn-button-place').textContent = `PLACE: ${this.buttonPlace.toUpperCase()}`;
       }
 
       persistSettings() {
@@ -2429,8 +2443,7 @@
           muted: this.sound.muted,
           // A replay plays at the gravity it was recorded with; keep the player's own
           gravity: this.replay ? this.replay.gravity : this.gravityLevel,
-          buttonSize: this.buttonSize !== 'auto' ? this.buttonSize : undefined,
-          viewShape: this.viewShape !== 'auto' ? this.viewShape : undefined
+          layout: this.layoutChoices
         });
       }
 
@@ -2535,7 +2548,6 @@
         const status = document.getElementById('gravity-status');
         status.textContent = cfg.label;
         status.className = cfg.className;
-        this.resize(); // the header may need compacting for a longer label
 
         if (!announce) return;
         // Changing gravity during a game changes how it plays out, so it's recorded
@@ -4338,7 +4350,7 @@
           const f = document.getElementById('game-frame').getBoundingClientRect();
           const modes = ['fullscreen', 'standalone', 'minimal-ui', 'browser'].filter((m) => matchMedia(`(display-mode: ${m})`).matches);
           const buttons = (t.classList.contains('sides') ? 'at the sides' : t.classList.contains('two-row') ? 'below, two rows' : 'below, one row')
-            + (t.classList.contains('small') ? ', small' : t.classList.contains('big') ? ', big' : '');
+            + (t.classList.contains('small') ? ', small' : ', large');
           return [
             `display-mode: ${modes.join(', ') || '?'}, fullscreen element: ${document.fullscreenElement ? 'yes' : 'no'}`,
             `window ${innerWidth}x${innerHeight}, screen ${screen.width}x${screen.height}, dpr ${devicePixelRatio}`,
@@ -4351,7 +4363,7 @@
             '',
             `playfield ${Math.round(f.width)}x${Math.round(f.height)} ${g && g.rotated ? '3:4' : '4:3'}, buttons ${buttons}`
               + `${g && g.splitHeader ? ', header beside' : ''}${g && g.noFooter ? ', no footer' : ''}`,
-            `pause menu: buttons ${g ? g.buttonSize : '?'}, shape ${g ? g.viewShape : '?'}`,
+            `pause menu (${g ? g.layoutOrientation() : '?'} choices): buttons ${g ? g.buttonSize : '?'}, place ${g ? g.buttonPlace : '?'}, orientation ${g ? g.viewShape : '?'}`,
             '',
             ...layoutTable(g),
             '',
@@ -4400,7 +4412,8 @@
           buttons.appendChild(b);
         };
         choice('buttonSize', BUTTON_SIZES, 'Buttons');
-        choice('viewShape', VIEW_SHAPES, 'Shape');
+        choice('buttonPlace', BUTTON_PLACES, 'Place');
+        choice('viewShape', VIEW_SHAPES, 'Orientation');
 
         // Live frame rates, updated every second while the panel is open: how often the
         // screen refreshes (frames the browser offers), and how often the game draws

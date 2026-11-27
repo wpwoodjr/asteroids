@@ -3,7 +3,7 @@
 // size, where the touch buttons go and at what size, and whether the header and footer
 // moved. For checking what a change to the layout rules does across devices.
 //
-//   node --experimental-websocket tools/layout-sizes.mjs [--buttons=large|small] [--place=sides|below] [--shape=landscape|portrait] [file.html]
+//   node --experimental-websocket tools/layout-sizes.mjs [--buttons=large|small] [--place=sides|below] [--shape=tall|wide] [file.html]
 //
 // Each size is width x height at a device pixel ratio, optionally with a gesture-bar
 // strip at the bottom (a safe-area inset). See browser.mjs for what it needs.
@@ -54,8 +54,11 @@ for (const [width, height, dpr, strip, what] of SIZES) {
     for (const [key, value] of Object.entries(${JSON.stringify(choices)})) g.setLayoutChoice(key, value);
     const f = document.getElementById('game-frame').getBoundingClientRect();
     const buttons = (t.classList.contains('sides') ? 'sides' : t.classList.contains('two-row') ? 'below, two rows' : 'below, one row')
-      + (t.classList.contains('small') ? ', small' : '') + (t.classList.contains('pill') ? ', pills' : '');
-    return [g.rotated ? '3:4' : '4:3', (Math.round(f.width) + 'x' + Math.round(f.height)).padEnd(9), buttons.padEnd(29),
+      + (t.classList.contains('small') ? ', small' : '') + (t.classList.contains('pill') ? ', pills ' + t.style.getPropertyValue('--pill') : '')
+      + ', gaps ' + g.buttonGap.x + '/' + g.buttonGap.y
+      // (at the sides: how far the top buttons' middles are below halfway up the window)
+      + (t.classList.contains('sides') ? ', top ' + ['btn-touch-left', 'btn-touch-fire'].map((id) => { const r = document.getElementById(id).getBoundingClientRect(); return Math.round(r.top + r.height / 2 - innerHeight / 2); }).join('/') : '');
+    return [g.rotated ? '3:4' : '4:3', (Math.round(f.width) + 'x' + Math.round(f.height)).padEnd(9), buttons.padEnd(52),
       (g.splitHeader ? 'header beside' : '').padEnd(13), (g.noFooter ? 'no footer' : '').padEnd(9),
       document.documentElement.scrollHeight <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1 ? '' : 'OVERFLOW'].join('  ');
   })()`);

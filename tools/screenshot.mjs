@@ -8,11 +8,11 @@
 //   --strip=32            a gesture bar this tall at the bottom (a safe-area inset)
 //   --buttons=small       the pause menu's Buttons choice (auto, large, small)
 //   --place=sides         the pause menu's Place choice (auto, sides, below)
-//   --shape=portrait      the pause menu's Shape choice (auto, landscape, portrait)
+//   --shape=tall          the pause menu's Shape choice (auto, tall, wide)
 //   --play                start a game first
 //   --pause               start a game and pause it (shows the pause menu)
 //   --diag                open the diagnostics panel
-//   --js='code'           run this in the page before the screenshot
+//   --js='code'           run this in the page before the screenshot (and print what it returns)
 //   --page=other.html     a page other than asteroids.html
 // It also prints the layout picked (as the diagnostics panel's first lines).
 import path from 'node:path';
@@ -36,7 +36,7 @@ await b.ev(`(() => { const g = window.__asteroidsGameInstance;
   for (const [key, value] of Object.entries(${JSON.stringify(choices)})) g.setLayoutChoice(key, value); })()`);
 if (option('play') || option('pause')) await b.ev('window.__asteroidsGameInstance.startGame()');
 if (option('pause')) await b.ev('window.__asteroidsGameInstance.togglePause()');
-if (option('js')) await b.ev(option('js'));
+if (option('js')) { const result = await b.ev(option('js')); if (result !== undefined) console.log(typeof result === 'string' ? result : JSON.stringify(result)); }
 if (option('diag')) {
   await b.ev(`(() => { const logo = document.getElementById('brand-logo');
     for (let i = 0; i < 3; i++) logo.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); })()`);

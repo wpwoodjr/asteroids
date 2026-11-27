@@ -89,6 +89,17 @@
     [data-overlay] { container-type: size; }
     .menu-title { font-size: clamp(36px, 8.5cqw, var(--title-max, 48px)); line-height: 1; }
     #screen-start .menu-title { --title-max: 60px; }
+    .pause-menu { width: 14rem; }
+    .flex-wrap { flex-wrap: wrap; }
+    .invisible { visibility: hidden; }
+    /* (room for 7 digits whatever the score, so the line lays out the same for both
+       score lists, and switching gravity doesn't move the start screen) */
+    #start-high-score { display: inline-block; min-width: 7ch; text-align: left; }
+    /* Game over spreads out on a taller playfield: its parts further apart and the score
+       box roomier, from the usual tight spacing on a short one */
+    #screen-game-over .overlay-fit { gap: clamp(12px, 3.5cqh, 36px); }
+    #screen-game-over .score-box { padding-block: clamp(6px, 1.5cqh, 16px); }
+    #screen-game-over .score-box > * + * { margin-top: clamp(6px, 1.5cqh, 16px); }
     /* (Tailwind's sizes, used by the menus but not yet in its built CSS above) */
     .text-base { font-size: 1rem; line-height: 1.5rem; }
     .text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
@@ -108,7 +119,7 @@
     /* Touch buttons: large on any screen, or small (.small) when resize() picks them or
        the player does. They keep their size rather than squeeze into a row that's too
        narrow (resize() then doesn't use that layout). */
-    #touch-controls > div { gap: 0.5rem; flex-shrink: 0; }
+    #touch-controls > div { column-gap: var(--gap-x, 0.5rem); row-gap: var(--gap-y, 0.5rem); flex-shrink: 0; }
     .touch-btn { flex-shrink: 0; }
     #btn-touch-left, #btn-touch-right, #btn-touch-thrust { width: 72px; height: 72px; }
     #btn-touch-fire { width: 80px; height: 80px; }
@@ -121,6 +132,8 @@
     #touch-controls.two-row > div { display: grid; grid-template-columns: auto auto; justify-items: center; }
     #touch-controls.two-row #btn-touch-hyperspace,
     #touch-controls.two-row #btn-touch-pause { grid-column: 1 / span 2; grid-row: 2; }
+    /* (moved down into spare space below, for more room between the rows: see resize()) */
+    #touch-controls.two-row :is(#btn-touch-hyperspace, #btn-touch-pause) { translate: 0 var(--row-extra, 0px); }
     #touch-controls.two-row #btn-touch-thrust { grid-column: 1; grid-row: 1; }
     #touch-controls.two-row #btn-touch-fire { grid-column: 2; grid-row: 1; }
     /* Buttons at the sides (chosen by resize() when that makes the playfield bigger, as
@@ -128,7 +141,7 @@
        placed by resize(). Left: rotate left, rotate right, Hyperspace; right: Fire,
        Thrust, Pause, top to bottom. */
     #touch-controls.sides { position: fixed; inset: 0; max-width: none; padding: 0; margin: 0; pointer-events: none; }
-    #touch-controls.sides > div { position: absolute; flex-direction: column; gap: 0.5rem; pointer-events: auto; }
+    #touch-controls.sides > div { position: absolute; flex-direction: column; pointer-events: auto; }
     #touch-controls.sides > div:last-child { flex-direction: column-reverse; }
     /* The small buttons, when they make the playfield bigger enough (see resize()) or
        the player picks them */
@@ -137,9 +150,13 @@
     #touch-controls.small :is(#btn-touch-hyperspace, #btn-touch-pause) { width: 56px; height: 48px; }
     #touch-controls.small #btn-touch-hyperspace { font-size: 9px; }
     #touch-controls.small :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust, #btn-touch-fire) span:last-child { font-size: 7px; }
-    #touch-controls.small > div { gap: 0.25rem; }
+    #touch-controls.small > div { column-gap: var(--gap-x, 0.25rem); row-gap: var(--gap-y, 0.25rem); }
+    /* (--gap-x and --gap-y: more space between the buttons side by side and one above
+       the other, where there's room for it; see resize()) */
     /* The round buttons stretch into pills wherever there's room for them (see resize()) */
-    #touch-controls.pill :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust, #btn-touch-fire) { width: auto; aspect-ratio: var(--pill, 1.5); }
+    #touch-controls.pill:not(.sides) :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust, #btn-touch-fire) { width: auto; aspect-ratio: var(--pill, 1.5); }
+    /* (at the sides they stretch downwards, so they take no width from the playfield) */
+    #touch-controls.pill.sides :is(#btn-touch-left, #btn-touch-right, #btn-touch-thrust, #btn-touch-fire) { height: auto; aspect-ratio: 1 / var(--pill, 1.5); }
     /* During a replay the ship's buttons do nothing (Pause still works) */
     body.replaying #touch-controls button:not(#btn-touch-pause) { opacity: 0.35; }
     .font-arcade {
@@ -234,6 +251,10 @@
             INSERT COIN / PLAY
           </button>
           <p class="mt-1 text-xs text-neutral-400">PRESS SPACEBAR OR CLICK TO START</p>
+          <!-- Gravity is set between games: it has its own scores -->
+          <button data-gravity-toggle class="mt-3 font-arcade px-4 py-2 border border-neutral-600 text-neutral-300 text-xs rounded hover:border-neutral-400 hover:text-white transition">
+            GRAVITY: <span data-gravity-status class="text-neutral-500 font-bold">OFF</span>
+          </button>
           <button id="btn-start-replay-best" class="hidden mt-3 font-arcade px-4 py-2 border border-yellow-500/60 text-yellow-300 text-xs rounded hover:border-yellow-400 hover:text-yellow-200 transition">
             ▶ WATCH BEST GAME <span data-replay-score></span>
           </button>
@@ -286,25 +307,31 @@
       <div id="screen-pause" data-overlay class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center px-4 py-2 text-center z-30">
         <div class="overlay-fit w-full flex flex-col items-center">
         <h2 class="font-arcade text-4xl text-white tracking-widest mb-6 vector-glow">GAME PAUSED</h2>
-        <div class="flex flex-col gap-3 w-48">
+        <div class="pause-menu flex flex-col gap-3">
           <button id="btn-resume-game" class="font-arcade py-2.5 px-4 bg-white text-black text-sm font-bold rounded hover:bg-neutral-200 active:scale-95 transition">
             RESUME (P)
           </button>
           <button id="btn-restart-from-pause" class="font-arcade py-2 px-4 border border-neutral-600 text-neutral-300 text-xs rounded hover:border-neutral-400 hover:text-white transition">
             RESTART (R)
           </button>
-          <button id="btn-gravity" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Cycle Gravity Strength: Off -> Low -> Med -> High (G)">
-            GRAVITY: <span id="gravity-status" class="text-neutral-500 font-bold">OFF</span>
+          <!-- (only where fullscreen can be turned on and off, like the header's Full) -->
+          <button id="btn-pause-fullscreen" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition">
+            FULLSCREEN: <span id="fullscreen-status" class="text-neutral-500 font-bold">OFF</span>
           </button>
-          <!-- Layout settings (see resize()): each cycles through its choices -->
-          <button id="btn-button-size" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Touch button size: Auto, Large or Small">
+          <button id="btn-pause-sound" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition">
+            SOUND: <span id="sound-status" class="text-white font-bold">ON</span>
+          </button>
+          <!-- Layout settings (see resize()): each cycles through its choices, which are
+               kept for wide and tall screens separately -->
+          <div id="layout-config-title" class="font-arcade text-xs text-neutral-300 mt-1 text-left">WIDE SCREEN:</div>
+          <button id="btn-view-shape" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition">
+            SHAPE: AUTO
+          </button>
+          <button id="btn-button-size" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition">
             BUTTONS: AUTO
           </button>
-          <button id="btn-button-place" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Touch button position: Auto, at the Sides of the playfield, or Below it">
+          <button id="btn-button-place" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition">
             PLACE: AUTO
-          </button>
-          <button id="btn-view-shape" class="font-arcade py-2 px-4 border border-neutral-700 text-neutral-400 text-xs rounded hover:border-neutral-400 hover:text-white transition" title="Playfield orientation: Auto, Landscape (4:3) or Portrait (3:4)">
-            ORIENT: AUTO
           </button>
         </div>
         </div>
@@ -313,11 +340,11 @@
       <!-- Game Over Screen -->
       <div id="screen-game-over" data-overlay class="hidden absolute inset-0 menu-backdrop flex flex-col items-center justify-center px-4 py-2 text-center z-30">
         <div class="overlay-fit w-full flex flex-col items-center">
-        <h2 class="font-arcade menu-title text-red-500 tracking-widest mb-3 vector-glow">GAME OVER</h2>
-        <div id="new-high-score-banner" class="hidden mb-4 px-3 py-1 bg-yellow-500/20 border border-yellow-500 text-yellow-300 font-arcade text-xs rounded animate-bounce">
+        <h2 class="font-arcade menu-title text-red-500 tracking-widest vector-glow">GAME OVER</h2>
+        <div id="new-high-score-banner" class="hidden px-3 py-1 bg-yellow-500/20 border border-yellow-500 text-yellow-300 font-arcade text-xs rounded animate-bounce">
           ★ NEW HIGH SCORE! ★
         </div>
-        <div class="border border-neutral-800 rounded px-4 py-1.5 mb-4 w-full max-w-xs text-center space-y-1.5">
+        <div class="score-box border border-neutral-800 rounded px-4 w-full max-w-xs text-center">
           <div>
             <div class="text-neutral-400 text-xs">FINAL SCORE</div>
             <div id="game-over-score" class="font-arcade text-2xl leading-tight text-white">00</div>
@@ -335,7 +362,7 @@
         </div>
 
         <!-- Shown when the score makes the Hall of Fame (see askInitials) -->
-        <div id="initials-entry" class="hidden mb-4 flex flex-col items-center">
+        <div id="initials-entry" class="hidden flex flex-col items-center">
           <label for="initials-input" class="font-arcade text-xs text-yellow-300 mb-1">TOP 10! ENTER YOUR INITIALS</label>
           <div class="flex items-center gap-2">
             <input id="initials-input" type="text" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done"
@@ -353,7 +380,10 @@
             🏆 SCORES
           </button>
         </div>
-        <div class="flex items-center gap-3 mt-3">
+        <div class="flex flex-wrap items-center justify-center gap-3">
+          <button data-gravity-toggle class="font-arcade px-4 py-2 border border-neutral-600 text-neutral-300 text-xs rounded hover:border-neutral-400 hover:text-white transition">
+            GRAVITY: <span data-gravity-status class="text-neutral-500 font-bold">OFF</span>
+          </button>
           <button id="btn-replay-last" class="hidden font-arcade px-4 py-2 border border-neutral-600 text-neutral-200 text-xs rounded hover:border-neutral-400 hover:text-white transition">
             ▶ REPLAY
           </button>
@@ -392,7 +422,7 @@
               <h4 class="font-bold text-white mb-1">PRO SURVIVAL TIPS</h4>
               <p class="text-neutral-400 text-[11px] leading-relaxed">
                 • Arcade Inertia: Your ship keeps drifting after you let go of thrust and only slowly coasts to a stop (no friction in Gravity Mode). To brake fast, rotate 180° and counter-thrust.<br>
-                • Gravity Mode [G, or Gravity in the pause menu]: cycles through OFF, LOW, MED, and HIGH gravity wells. Slingshot around the planet, and shoot asteroids before they fall in: each one it swallows costs you its points!<br>
+                • Gravity Mode [G, or Gravity on the start and game over screens]: a planet in the middle pulls on everything. Slingshot around it, and shoot asteroids before they fall in: each one it swallows costs you its points! It's set between games, and has its own Hall of Fame.<br>
                 • Hyperspace is a gamble: you vanish for a moment and reappear at random, and the jump can destroy your ship. It's riskier when few asteroids remain.<br>
                 • Small saucers are deadly accurate: destroy them before they line up a shot!<br>
                 • Watch your own shots: they wrap around the screen and can hit your ship. Saucer shots smash asteroids too.<br>
@@ -418,6 +448,11 @@
             <button id="btn-close-scores" class="text-neutral-400 hover:text-white font-bold text-lg px-2">✕</button>
           </div>
           
+          <!-- A list for games without gravity and one for games with it (see renderLeaderboard()) -->
+          <div class="flex justify-center gap-2 mb-3">
+            <button data-scores-tab="0" class="font-arcade px-3 py-1.5 text-xs rounded border border-yellow-500 text-yellow-300">NO GRAVITY</button>
+            <button data-scores-tab="1" class="font-arcade px-3 py-1.5 text-xs rounded border border-neutral-700 text-neutral-400 hover:text-white">GRAVITY</button>
+          </div>
           <div class="space-y-2 mb-5">
             <div class="grid grid-cols-4 text-xs font-arcade text-neutral-400 pb-1.5 border-b border-neutral-800">
               <span>RANK</span>
@@ -432,7 +467,7 @@
 
           <div class="flex justify-between items-center pt-3 border-t border-neutral-800">
             <button id="btn-reset-scores" class="text-[10px] text-neutral-400 hover:text-red-400 transition underline cursor-pointer">
-              Reset Scores
+              Reset these scores
             </button>
             <button id="btn-scores-ok" class="font-arcade px-5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded text-xs">
               CLOSE
@@ -998,7 +1033,7 @@
     const SIDES_LOSS = 0.95; // touch buttons go at the sides unless below makes the playfield's area bigger than this allows
     // The player's layout choices (pause menu); 'auto' leaves them to resize()
     const BUTTON_SIZES = ['auto', 'large', 'small'];
-    const VIEW_SHAPES = ['auto', 'landscape', 'portrait'];
+    const VIEW_SHAPES = ['auto', 'tall', 'wide'];
     const BUTTON_PLACES = ['auto', 'sides', 'below'];
     // The pause menu's layout choices, the values each may take
     const LAYOUT_CHOICES = { buttonSize: BUTTON_SIZES, buttonPlace: BUTTON_PLACES, viewShape: VIEW_SHAPES };
@@ -1018,9 +1053,7 @@
     // --- Gravity Well Presets ---
     const GRAVITY_LEVELS = [
       { label: 'OFF',  mass: 0,       radius: 38, className: 'text-neutral-500 font-bold',               msg: 'OPEN SPACE MODE', color: '#94a3b8', ringColor: null,                         rotSpeed: 0,     pulseSpeed: 0,    rings: 0 },
-      { label: 'LOW',  mass: 450000,  radius: 36, className: 'text-cyan-400 font-bold',                  msg: 'GRAVITY: LOW',    color: '#38bdf8', ringColor: 'rgba(56, 189, 248, 0.18)',  rotSpeed: 0.012, pulseSpeed: 0.04, rings: 3 },
-      { label: 'MED',  mass: 980000,  radius: 42, className: 'text-yellow-400 font-bold',                msg: 'GRAVITY: MED',    color: '#facc15', ringColor: 'rgba(250, 204, 21, 0.22)',  rotSpeed: 0.02,  pulseSpeed: 0.06, rings: 4 },
-      { label: 'HIGH', mass: 1950000, radius: 46, className: 'text-red-400 font-bold animate-pulse',     msg: 'GRAVITY: HIGH',   color: '#f87171', ringColor: 'rgba(248, 113, 113, 0.30)', rotSpeed: 0.03,  pulseSpeed: 0.08, rings: 5 }
+      { label: 'ON',   mass: 450000,  radius: 36, className: 'text-cyan-400 font-bold',                  msg: 'GRAVITY ON',      color: '#38bdf8', ringColor: 'rgba(56, 189, 248, 0.18)',  rotSpeed: 0.012, pulseSpeed: 0.04, rings: 3 }
     ];
 
     // --- High Score & Leaderboard Persistence ---
@@ -1036,6 +1069,27 @@
       { name: "BLT", score: 500, wave: 1 },
       { name: "DOT", score: 300, wave: 1 }
     ];
+    // Gravity makes for a much harder game, so its scores are kept apart: their own Hall
+    // of Fame (starting with lower made-up scores), high score and best game. Index 0 is
+    // without gravity, 1 with it (see scoreMode).
+    const DEFAULT_GRAVITY_LEADERBOARD = [
+      { name: "PLN", score: 9250, wave: 6 },
+      { name: "SAT", score: 5900, wave: 4 },
+      { name: "MUN", score: 3750, wave: 3 },
+      { name: "ORB", score: 2350, wave: 2 },
+      { name: "SUN", score: 900, wave: 2 },
+      { name: "CMT", score: 700, wave: 1 },
+      { name: "NOV", score: 550, wave: 1 },
+      { name: "ION", score: 400, wave: 1 },
+      { name: "RAY", score: 300, wave: 1 },
+      { name: "ARC", score: 200, wave: 1 }
+    ];
+    const DEFAULT_LEADERBOARDS = [DEFAULT_LEADERBOARD, DEFAULT_GRAVITY_LEADERBOARD];
+    const SCORE_KEYS = [
+      { board: 'asteroids_leaderboard', high: 'asteroids_high_score' },
+      { board: 'asteroids_leaderboard_gravity', high: 'asteroids_high_score_gravity' }
+    ];
+    const SCORE_MODE_NAMES = ['NO GRAVITY', 'GRAVITY'];
     const LEADERBOARD_SIZE = 10;
 
     // The initials last entered, offered first next time
@@ -1048,9 +1102,10 @@
     // Up to 3 capital letters or digits
     const cleanInitials = (text) => String(text).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
 
-    function loadLeaderboard() {
+    function loadLeaderboard(mode = 0) {
+      const defaults = DEFAULT_LEADERBOARDS[mode];
       try {
-        const val = localStorage.getItem('asteroids_leaderboard');
+        const val = localStorage.getItem(SCORE_KEYS[mode].board);
         if (val) {
           const parsed = JSON.parse(val);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -1058,26 +1113,26 @@
             // places filled with default scores they don't already have; saved scores
             // are never pushed off
             if (parsed.length >= LEADERBOARD_SIZE) return parsed;
-            const extra = DEFAULT_LEADERBOARD.filter((d) => !parsed.some((e) => e.name === d.name && e.score === d.score))
+            const extra = defaults.filter((d) => !parsed.some((e) => e.name === d.name && e.score === d.score))
               .slice(0, LEADERBOARD_SIZE - parsed.length);
             return [...parsed, ...extra].sort((a, b) => b.score - a.score);
           }
         }
       } catch (e) {}
-      return [...DEFAULT_LEADERBOARD];
+      return [...defaults];
     }
 
-    function saveLeaderboard(board) {
+    function saveLeaderboard(board, mode = 0) {
       try {
-        localStorage.setItem('asteroids_leaderboard', JSON.stringify(board));
+        localStorage.setItem(SCORE_KEYS[mode].board, JSON.stringify(board));
       } catch (e) {}
     }
 
-    function loadHighScore() {
+    function loadHighScore(mode = 0) {
       try {
-        const board = loadLeaderboard();
+        const board = loadLeaderboard(mode);
         const topBoardScore = board.length > 0 ? board[0].score : 0;
-        const val = localStorage.getItem('asteroids_high_score');
+        const val = localStorage.getItem(SCORE_KEYS[mode].high);
         const legacyScore = val ? parseInt(val, 10) || 0 : 0;
         return Math.max(topBoardScore, legacyScore);
       } catch (e) {
@@ -1085,9 +1140,9 @@
       }
     }
 
-    function saveHighScore(score) {
+    function saveHighScore(score, mode = 0) {
       try {
-        localStorage.setItem('asteroids_high_score', score.toString());
+        localStorage.setItem(SCORE_KEYS[mode].high, score.toString());
       } catch (e) {}
     }
 
@@ -1108,8 +1163,8 @@
 
     // --- Replays ---
     // A replay records what the player did, not what was on screen: the game's random
-    // seed, the gravity level it started with, how long each frame was and which of
-    // rotate/thrust were held, and when shots, hyperspace jumps and gravity changes
+    // seed, whether gravity was on (it can't change during a game), how long each frame
+    // was and which of rotate/thrust were held, and when shots and hyperspace jumps
     // happened. Playing it back runs the same game code on the same inputs, which plays
     // out the same game. For that the game must be deterministic: its random numbers
     // come from generators seeded per game (game.random for gameplay, game.fxRandom for
@@ -1118,12 +1173,16 @@
     // Bump REPLAY_VERSION whenever a change alters how a game plays out (physics,
     // timing, scoring, saucers, anything that uses game.random), so saved replays from
     // before the change are dropped instead of playing out a different game.
-    const REPLAY_VERSION = 1;
+    // (2: with gravity, the ship starts above the planet, not below. 3: gravity is on or
+    // off, as Low was, and doesn't change during a game.)
+    const REPLAY_VERSION = 3;
     const DT_UNITS = 10000; // frame times are kept in 0.1 ms units (at most 0.1 s = 1000)
     // A frame is stored as one character: 32 + time * 8 + held controls (bits: 1 left,
     // 2 right, 4 thrust). Events are numbers: frame index * 8 + one of these codes.
-    const REPLAY_EVENT = { fire: 0, hyperspace: 1, gravity: 2 }; // gravity: 2 + new level
-    const REPLAY_KEYS = { last: 'asteroids_replay_last', best: 'asteroids_replay_best' };
+    const REPLAY_EVENT = { fire: 0, hyperspace: 1 };
+    // (the best game is kept for each score list: without gravity, and with it)
+    const REPLAY_KEYS = { last: 'asteroids_replay_last', best: 'asteroids_replay_best', bestGravity: 'asteroids_replay_best_gravity' };
+    const BEST_REPLAY_KEYS = [REPLAY_KEYS.best, REPLAY_KEYS.bestGravity];
 
     // Small, fast seeded generator (mulberry32): returns numbers in [0, 1) like Math.random
     function seededRandom(seed) {
@@ -1140,7 +1199,7 @@
     function loadReplay(key) {
       try {
         const r = JSON.parse(localStorage.getItem(key));
-        if (r && r.v === REPLAY_VERSION && typeof r.frames === 'string' && Array.isArray(r.events)) return r;
+        if (r && r.v === REPLAY_VERSION && typeof r.frames === 'string' && Array.isArray(r.events) && GRAVITY_LEVELS[r.gravity]) return r;
       } catch (e) {}
       return null;
     }
@@ -1517,7 +1576,9 @@
         ctx.rotate(s.angle);
         // Same outline as the vector ship, enlarged to match how big the glowing lines look
         ctx.scale(SHIP_ART_SCALE, SHIP_ART_SCALE);
-        const blink = s.invulnerable > 0 && Math.floor(Date.now() / 100) % 2 === 0;
+        // (a shielded ship blinks, but only while the game runs: a paused frame could
+        // otherwise catch it hidden, and keep it so)
+        const blink = s.invulnerable > 0 && game.state === 'PLAYING' && Math.floor(Date.now() / 100) % 2 === 0;
         if (!blink) {
           // A starfighter: slim nose, swept wings and two engines. Drawn a bit larger than
           // the vector outline (SHIP_ART_SCALE), since it covers less area.
@@ -1812,7 +1873,7 @@
 
         // Game State
         this.state = 'START';
-        this.gravityLevel = 0; // 0 = OFF, 1 = LOW, 2 = MED, 3 = HIGH
+        this.gravityLevel = 0; // 0 = OFF, 1 = ON (set between games: see toggleGravity())
         this.gravityMode = false;
         this.planet = {
           x: this.width / 2,
@@ -1823,7 +1884,7 @@
           pulse: 0
         };
         this.score = 0;
-        this.highScore = loadHighScore();
+        this.highScores = [loadHighScore(0), loadHighScore(1)]; // (see highScore)
         this.lives = 3;
         this.wave = 1;
         this.lastExtraLifeScore = 0;
@@ -1874,7 +1935,7 @@
         this.recording = null;
         this.replay = null;
         this.lastGame = loadReplay(REPLAY_KEYS.last);
-        this.bestGame = loadReplay(REPLAY_KEYS.best);
+        this.bestGames = BEST_REPLAY_KEYS.map(loadReplay); // (see bestGame)
 
         this.sound.isIdle = () => this.state !== 'PLAYING';
         this.initDOM();
@@ -1933,7 +1994,9 @@
         // The Hall of Fame and Help each close the other when opened (both are see-through)
         const screenScores = document.getElementById('screen-scores');
         const screenHelp = document.getElementById('screen-help');
+        // (it opens on the list for the gravity setting)
         const openScores = () => {
+          this.scoresTab = this.scoreMode;
           this.renderLeaderboard();
           screenHelp.classList.add('hidden');
           screenScores.classList.remove('hidden');
@@ -1947,11 +2010,15 @@
         document.getElementById('btn-close-scores').addEventListener('click', closeScores);
         document.getElementById('btn-scores-ok').addEventListener('click', closeScores);
         document.getElementById('btn-reset-scores').addEventListener('click', () => this.resetScores());
+        for (const tab of document.querySelectorAll('[data-scores-tab]')) {
+          tab.addEventListener('click', () => { this.scoresTab = Number(tab.dataset.scoresTab); this.renderLeaderboard(); });
+        }
 
         const btnFullscreen = document.getElementById('btn-fullscreen');
         if (btnFullscreen) {
           btnFullscreen.addEventListener('click', () => this.toggleFullscreen());
         }
+        document.getElementById('btn-pause-fullscreen').addEventListener('click', () => this.toggleFullscreen());
         document.addEventListener('fullscreenchange', () => {
           this.resize();
           this.updateFullscreenAvailability();
@@ -1964,7 +2031,8 @@
 
         document.getElementById('btn-theme').addEventListener('click', () => this.cycleTheme());
         document.getElementById('btn-audio').addEventListener('click', () => this.toggleAudio());
-        document.getElementById('btn-gravity').addEventListener('click', () => this.toggleGravity());
+        document.getElementById('btn-pause-sound').addEventListener('click', () => this.toggleAudio());
+        for (const button of document.querySelectorAll('[data-gravity-toggle]')) button.addEventListener('click', () => this.toggleGravity());
 
         document.getElementById('btn-help').addEventListener('click', () => {
           closeScores();
@@ -1995,15 +2063,20 @@
         this.updateReplayButtons();
       }
 
-      // Show the Replay and Best Game buttons only when there's a saved game to show
+      // Show the Replay and Best Game buttons only when there's a saved game to show. (A
+      // Best Game button missing only for this gravity setting keeps its place, blank, so
+      // switching gravity doesn't move the menu.)
       updateReplayButtons() {
-        const best = this.bestGame;
+        const best = this.bestGame, anyBest = this.bestGames.some(Boolean);
         document.getElementById('btn-replay-last').classList.toggle('hidden', !this.lastGame);
         for (const id of ['btn-replay-best', 'btn-start-replay-best']) {
           const button = document.getElementById(id);
-          button.classList.toggle('hidden', !best);
-          if (best) button.querySelector('[data-replay-score]').textContent =
-            (best.name ? `${best.name} ` : '') + best.score.toLocaleString();
+          button.classList.toggle('hidden', !anyBest);
+          button.classList.toggle('invisible', anyBest && !best);
+          // (blank, it still holds the other best game's score, so it's the same size)
+          const shown = best || this.bestGames.find(Boolean);
+          if (shown) button.querySelector('[data-replay-score]').textContent =
+            (shown.name ? `${shown.name} ` : '') + shown.score.toLocaleString();
         }
       }
 
@@ -2101,7 +2174,7 @@
         const [leftHand, rightHand] = touch.children;
         const header = document.querySelector('header');
         const logo = header.children[0], [settingsLeft, settingsRight] = header.querySelectorAll('.settings-group');
-        touch.style.transform = '';
+        touch.style.transform = header.style.transform = '';
         touch.classList.remove('two-row', 'small', 'pill');
         for (const el of [leftHand, rightHand, logo, settingsLeft, settingsRight]) el.style.left = el.style.top = '';
 
@@ -2117,6 +2190,19 @@
           const beside = !on ? [] : splitHeader ? [leftHand, rightHand, logo, settingsLeft, settingsRight] : [leftHand, rightHand];
           const room = beside.length ? Math.max(...beside.map((el) => el.offsetWidth)) + 8 : 0;
           main.style.paddingLeft = main.style.paddingRight = room ? `${room}px` : '';
+        };
+        // Where a side column's top goes: with its top button (rotate left, Fire) halfway up
+        // the window, kept between the header (or the header's blocks at the top of the
+        // side areas, HEADER_CLEAR below its buttons so a tap doesn't hit the wrong one)
+        // and the bottom of the play area.
+        const columnTop = (hand) => {
+          const room = main.getBoundingClientRect();
+          const settings = hand === leftHand ? settingsLeft : settingsRight;
+          const highest = this.splitHeader ? room.top + logo.offsetHeight + 6 + settings.offsetHeight + HEADER_CLEAR
+            : header.getBoundingClientRect().bottom + HEADER_CLEAR;
+          const topButton = hand === leftHand ? hand.firstElementChild : hand.lastElementChild; // (the right column is bottom up)
+          const top = Math.max(highest, Math.min(room.bottom - hand.offsetHeight, innerHeight / 2 - topButton.offsetHeight / 2));
+          return top;
         };
         // Whether each side's things fit, one above the other, in the play area's height
         const sidesFit = (splitHeader) => {
@@ -2212,7 +2298,7 @@
         // (Buttons: Large never uses the small ones; Small always does, and never the
         // big ones).
         const upright = bestLayout(this.height / this.width, true);
-        this.rotated = this.viewShape === 'auto' ? area(upright) > UPRIGHT_GAIN * area(wide) : this.viewShape === 'portrait';
+        this.rotated = this.viewShape === 'auto' ? area(upright) > UPRIGHT_GAIN * area(wide) : this.viewShape === 'tall';
         const chosen = this.rotated ? upright : wide;
         if (chosen.row) chosen.row.chosen = true;
         // (what the sides and the small buttons gained, for checking the rules)
@@ -2242,9 +2328,12 @@
           }
         }
         // The round buttons stretch into pills (easier to hit) wherever there's room for
-        // them: when the playfield stays the same size and the buttons still fit across.
-        // The widest that fits, up to half again as wide as tall.
+        // them: below the playfield, sideways, when it stays the same size and the buttons
+        // still fit across; at the sides, lengthways, when the columns still fit in the
+        // play area's height (they grow down from halfway up, and up where there's no more
+        // room below). The longest that fits, up to half again as long as wide.
         touch.style.removeProperty('--pill');
+        for (const property of ['--gap-x', '--gap-y', '--row-extra']) touch.style.removeProperty(property);
         if (fit.ok) {
           const setPills = (shape) => {
             touch.classList.toggle('pill', !!shape);
@@ -2255,9 +2344,29 @@
           for (const shape of [1.5, 1.4, 1.3, 1.2, 1.1]) {
             setPills(shape);
             const pill = fitFrame();
-            if (pill.w >= fit.w - 0.5 && pill.h >= fit.h - 0.5 && (atSides || touch.scrollWidth <= touch.clientWidth + 1)) { fit = pill; pills = true; break; }
+            const fits = atSides ? sidesFit(this.splitHeader) : touch.scrollWidth <= touch.clientWidth + 1;
+            if (pill.w >= fit.w - 0.5 && pill.h >= fit.h - 0.5 && fits) { fit = pill; pills = true; break; }
           }
           if (!pills) setPills(null);
+          // Last, and least: a little more space between the buttons (so a thumb is less
+          // likely to catch the wrong one), the most, up to 8 px more, that changes nothing
+          // else: the same playfield, the buttons still fit, and the side columns stay
+          // where they were. Side by side below the playfield, one above the other at the
+          // sides. (Between two rows below it, see where the buttons are lifted.)
+          const usual = this.smallButtons ? 4 : 8;
+          this.buttonGap = { x: usual, y: usual };
+          const columnTops = () => atSides ? [columnTop(leftHand), columnTop(rightHand)] : [];
+          const tops = columnTops();
+          for (const axis of atSides ? ['y'] : ['x']) {
+            for (let gap = usual + 8; gap > usual; gap -= 2) {
+              touch.style.setProperty(`--gap-${axis}`, `${gap}px`);
+              const spaced = fitFrame();
+              const fits = atSides ? sidesFit(this.splitHeader) && columnTops().every((top, i) => Math.abs(top - tops[i]) < 0.5)
+                : touch.scrollWidth <= touch.clientWidth + 1;
+              if (spaced.w >= fit.w - 0.5 && spaced.h >= fit.h - 0.5 && fits) { fit = spaced; this.buttonGap[axis] = gap; break; }
+              touch.style.removeProperty(`--gap-${axis}`);
+            }
+          }
         }
         if (!fit.ok) return;
         const frameWidth = fit.w, frameHeight = fit.h;
@@ -2284,14 +2393,11 @@
 
         // The header sits just above the playfield, as it does when there's no room to
         // spare: when there is, it moves down to it, which also keeps it clear of a camera
-        // cutout at the top of the screen. (Not so far that the side buttons below it no
-        // longer fit.)
-        header.style.transform = '';
+        // cutout at the top of the screen. (Not so far that it pushes the side columns
+        // below it down.)
+        const columnTops = atSides && !this.splitHeader ? [columnTop(leftHand), columnTop(rightHand)] : [];
         let down = Math.round(frame.getBoundingClientRect().top - OUTLINE - 4 - header.getBoundingClientRect().bottom);
-        if (atSides) {
-          const tallest = Math.max(leftHand.offsetHeight, rightHand.offsetHeight);
-          down = Math.min(down, Math.floor(main.getBoundingClientRect().bottom - tallest - HEADER_CLEAR - header.getBoundingClientRect().bottom));
-        }
+        if (columnTops.length) down = Math.min(down, Math.floor(Math.min(...columnTops) - HEADER_CLEAR - header.getBoundingClientRect().bottom));
         if (down > 0 && !this.splitHeader) header.style.transform = `translateY(${down}px)`;
 
         // Keep the touch buttons just under the playfield: when the playfield is limited
@@ -2300,16 +2406,19 @@
         if (!atSides) {
           const gap = touch.getBoundingClientRect().top - frame.getBoundingClientRect().bottom - OUTLINE - 8;
           if (gap > 0) touch.style.transform = `translateY(${-gap}px)`;
+          // In two rows, the second (Hyperspace, Pause) moves down into that spare space,
+          // up to 8 px, for more space between the rows (the first row and the playfield
+          // stay where they are)
+          if (touch.classList.contains('two-row')) {
+            const extra = Math.min(8, Math.max(0, Math.floor(gap / 2) * 2));
+            touch.style.setProperty('--row-extra', `${extra}px`);
+            this.buttonGap.y += extra;
+          }
         } else {
-          // Buttons at the sides: each column next to the playfield, with its middle button
-          // (rotate right, Thrust) halfway up the window, kept between the
-          // header (or the header's blocks at the top of the side areas) and the bottom of
-          // the play area
+          // Buttons at the sides: each column next to the playfield, at columnTop(), below
+          // the header's blocks when it's split into the side areas
           const room = main.getBoundingClientRect(), f = frame.getBoundingClientRect();
           const leftEdge = f.left - OUTLINE - 8, rightEdge = f.right + OUTLINE + 8;
-          // (HEADER_CLEAR below the header's buttons, so a tap doesn't hit the wrong one)
-          const belowHeader = header.getBoundingClientRect().bottom + HEADER_CLEAR;
-          const tops = new Map([[leftHand, belowHeader], [rightHand, belowHeader]]);
           if (this.splitHeader) {
             // The logo and first settings group above the left column, against the
             // playfield; the second group level with the first, above the right column
@@ -2318,16 +2427,10 @@
             const row = room.top + logo.offsetHeight + 6;
             place(settingsLeft, leftEdge - settingsLeft.offsetWidth, row);
             place(settingsRight, rightEdge, row);
-            tops.set(leftHand, row + settingsLeft.offsetHeight + HEADER_CLEAR);
-            tops.set(rightHand, row + settingsRight.offsetHeight + HEADER_CLEAR);
           }
-          const bottom = room.bottom;
           for (const hand of [leftHand, rightHand]) {
-            const middle = hand.children[1], handBox = hand.getBoundingClientRect(), mid = middle.getBoundingClientRect();
-            const toMiddle = mid.top + mid.height / 2 - handBox.top;
-            const top = Math.max(tops.get(hand), Math.min(bottom - handBox.height, innerHeight / 2 - toMiddle));
-            hand.style.top = `${Math.round(top)}px`;
-            hand.style.left = `${Math.round(hand === leftHand ? leftEdge - handBox.width : rightEdge)}px`;
+            hand.style.top = `${Math.round(columnTop(hand))}px`;
+            hand.style.left = `${Math.round(hand === leftHand ? leftEdge - hand.offsetWidth : rightEdge)}px`;
           }
         }
 
@@ -2370,6 +2473,10 @@
       updateFullscreenAvailability() {
         const available = this.canToggleFullscreen();
         document.getElementById('btn-fullscreen').classList.toggle('hidden', !available);
+        document.getElementById('btn-pause-fullscreen').classList.toggle('hidden', !available);
+        const status = document.getElementById('fullscreen-status'), on = !!document.fullscreenElement;
+        status.textContent = on ? 'ON' : 'OFF';
+        status.className = `${on ? 'text-white' : 'text-neutral-500'} font-bold`;
         document.getElementById('help-fullscreen-key').classList.toggle('hidden', !available);
         this.resize(); // showing/hiding Full changes the header's width
       }
@@ -2395,21 +2502,26 @@
         this.paletteReached = Math.max(0, AUTO_PALETTES.indexOf(saved.paletteReached));
         this.setTheme(themeIdx >= 0 ? themeIdx : Math.max(0, THEMES.findIndex((t) => t.name === AUTO_PALETTES[this.paletteReached])));
         if (typeof saved.muted === 'boolean') this.setAudioMuted(saved.muted);
-        if (Number.isInteger(saved.gravity) && saved.gravity >= 0 && saved.gravity < GRAVITY_LEVELS.length) {
-          this.setGravityLevel(saved.gravity, false);
+        // (any gravity saved from when it had levels, Low to High, is on)
+        if (Number.isInteger(saved.gravity) && saved.gravity >= 0) {
+          this.setGravityLevel(Math.min(saved.gravity, 1), false);
         }
         for (const orientation of ['portrait', 'landscape']) {
           const kept = saved.layout && saved.layout[orientation];
           for (const [key, values] of Object.entries(LAYOUT_CHOICES)) {
-            if (kept && values.includes(kept[key])) this.layoutChoices[orientation][key] = kept[key];
+            // (the playfield shape was once saved as Landscape or Portrait)
+            const value = kept && ({ landscape: 'wide', portrait: 'tall' }[kept[key]] || kept[key]);
+            if (values.includes(value)) this.layoutChoices[orientation][key] = value;
           }
         }
         this.useLayoutChoices();
       }
 
-      // The current window's orientation: its layout choices apply
+      // The screen's orientation (not the window's: a window split with another app
+      // keeps the screen's choices): its layout choices apply
       layoutOrientation() {
-        return innerWidth >= innerHeight ? 'landscape' : 'portrait';
+        const w = screen.width || innerWidth, h = screen.height || innerHeight;
+        return w >= h ? 'landscape' : 'portrait';
       }
 
       // Take up the layout choices made for windows of this orientation (Auto for any
@@ -2431,8 +2543,9 @@
       }
 
       showLayoutChoices() {
+        document.getElementById('layout-config-title').textContent = this.layoutOrientation() === 'landscape' ? 'WIDE SCREEN:' : 'TALL SCREEN:';
         document.getElementById('btn-button-size').textContent = `BUTTONS: ${this.buttonSize.toUpperCase()}`;
-        document.getElementById('btn-view-shape').textContent = `ORIENT: ${this.viewShape.toUpperCase()}`;
+        document.getElementById('btn-view-shape').textContent = `SHAPE: ${this.viewShape.toUpperCase()}`;
         document.getElementById('btn-button-place').textContent = `PLACE: ${this.buttonPlace.toUpperCase()}`;
       }
 
@@ -2506,12 +2619,16 @@
         this.sound.ensureActive();
         this.setAudioMuted(!this.sound.muted);
         this.persistSettings();
+        if (!this.sound.muted) this.sound.playExtraLife(); // (so you hear it's on)
       }
 
       setAudioMuted(isMuted) {
         this.sound.setMuted(isMuted);
         const icon = document.getElementById('audio-icon');
         const status = document.getElementById('audio-status');
+        const pauseStatus = document.getElementById('sound-status');
+        pauseStatus.textContent = isMuted ? 'OFF' : 'ON';
+        pauseStatus.className = `${isMuted ? 'text-red-400' : 'text-white'} font-bold`;
         if (isMuted) {
           icon.textContent = '🔇';
           status.textContent = 'MUTED';
@@ -2531,11 +2648,21 @@
         }
       }
 
+      // Gravity is set between games (on the start and game over screens, or G there),
+      // not during one: games with it and without it have separate scores
       toggleGravity() {
-        if (this.replay) return; // the replay's gravity is part of the recorded game
+        if (this.replay || !(this.state === 'START' || this.state === 'GAMEOVER')) return;
         this.setGravityLevel((this.gravityLevel + 1) % GRAVITY_LEVELS.length, true);
         this.persistSettings();
       }
+
+      // Which score list counts: 0 without gravity, 1 with it. The high score and best
+      // game are those of the current one.
+      get scoreMode() { return this.gravityMode ? 1 : 0; }
+      get highScore() { return this.highScores[this.scoreMode]; }
+      set highScore(score) { this.highScores[this.scoreMode] = score; }
+      get bestGame() { return this.bestGames[this.scoreMode]; }
+      set bestGame(rec) { this.bestGames[this.scoreMode] = rec; }
 
       setGravityLevel(level, announce) {
         this.gravityLevel = level;
@@ -2545,27 +2672,20 @@
         this.planet.mass = cfg.mass;
         this.planet.radius = cfg.radius;
 
-        const status = document.getElementById('gravity-status');
-        status.textContent = cfg.label;
-        status.className = cfg.className;
+        for (const status of document.querySelectorAll('[data-gravity-status]')) {
+          status.textContent = cfg.label;
+          status.className = cfg.className;
+        }
+        // Its own high score and best game
+        this.updateHighScoreDisplays();
+        this.updateReplayButtons();
+        // Show the change straight away (the planet), even when nothing else is moving
+        this.requestRender();
 
         if (!announce) return;
-        // Changing gravity during a game changes how it plays out, so it's recorded
-        if (this.state === 'PLAYING' || this.state === 'PAUSED') this.recordEvent(REPLAY_EVENT.gravity + level);
-        this.addFloatingText(this.viewW / 2, this.viewH / 2 - 65, cfg.msg, cfg.color, { screen: true });
+        // (one gravity message at a time, however fast it's clicked)
+        this.addFloatingText(this.viewW / 2, this.viewH / 2 - 65, cfg.msg, cfg.color, { screen: true, tag: 'gravity' });
         if (this.gravityMode) this.sound.playExtraLife();
-
-        if (this.gravityMode && this.isShipActive()) {
-          const dist = Math.hypot(this.ship.x - this.planet.x, this.ship.y - this.planet.y);
-          if (dist < this.planet.radius + 55) {
-            this.ship.x = this.planet.x;
-            this.ship.y = this.planet.y + 165;
-            this.ship.vx = 0;
-            this.ship.vy = 0;
-            this.ship.invulnerable = Math.max(this.ship.invulnerable, 2.0);
-            this.createParticleBurst(this.ship.x, this.ship.y, 20, cfg.color);
-          }
-        }
       }
 
       wrapPosition(entity, margin = 0) {
@@ -2853,10 +2973,17 @@
         if (elGameOver) elGameOver.textContent = hsStr;
       }
 
+      // The Hall of Fame's list for its tab (scoresTab): without gravity, or with it
       renderLeaderboard() {
         const list = document.getElementById('leaderboard-list');
         if (!list) return;
-        const board = loadLeaderboard();
+        const mode = this.scoresTab || 0;
+        for (const tab of document.querySelectorAll('[data-scores-tab]')) {
+          const on = Number(tab.dataset.scoresTab) === mode;
+          tab.className = `font-arcade px-3 py-1.5 text-xs rounded border ${on ? 'border-yellow-500 text-yellow-300' : 'border-neutral-700 text-neutral-400 hover:text-white'}`;
+          tab.setAttribute('aria-pressed', on);
+        }
+        const board = loadLeaderboard(mode);
         list.innerHTML = '';
         // The player's scores (the initials last entered on this device) are picked out,
         // and the game just played most of all
@@ -2884,16 +3011,18 @@
         });
       }
 
+      // Clear the scores of the Hall of Fame list showing (without gravity, or with it)
       resetScores() {
+        const mode = this.scoresTab || 0;
         try {
-          localStorage.removeItem('asteroids_leaderboard');
-          localStorage.removeItem('asteroids_high_score');
+          localStorage.removeItem(SCORE_KEYS[mode].board);
+          localStorage.removeItem(SCORE_KEYS[mode].high);
         } catch (e) {}
         // The best game's replay goes with the scores
-        this.bestGame = null;
-        saveReplay(REPLAY_KEYS.best, null);
+        this.bestGames[mode] = null;
+        saveReplay(BEST_REPLAY_KEYS[mode], null);
         this.updateReplayButtons();
-        this.highScore = loadHighScore();
+        this.highScores[mode] = loadHighScore(mode);
         this.updateHighScoreDisplays();
         this.renderLeaderboard();
         this.requestRender(); // the HUD shows the high score
@@ -2935,9 +3064,11 @@
         if (!rec) return;
         Object.assign(rec, { score: this.score, wave: this.wave, date: Date.now() });
         this.lastGame = rec;
-        if (rec.score > 0 && (!this.bestGame || rec.score > this.bestGame.score)) {
-          this.bestGame = rec;
-          saveReplay(REPLAY_KEYS.best, rec);
+        // (the best of the games with the same gravity)
+        const mode = rec.gravity > 0 ? 1 : 0, best = this.bestGames[mode];
+        if (rec.score > 0 && (!best || rec.score > best.score)) {
+          this.bestGames[mode] = rec;
+          saveReplay(BEST_REPLAY_KEYS[mode], rec);
         }
         saveReplay(REPLAY_KEYS.last, rec);
         this.updateReplayButtons();
@@ -3039,7 +3170,6 @@
           const ev = events[r.event++] % 8;
           if (ev === REPLAY_EVENT.fire) this.fireBullet();
           else if (ev === REPLAY_EVENT.hyperspace) this.hyperspace();
-          else this.setGravityLevel(ev - REPLAY_EVENT.gravity, true);
         }
         r.frame++;
         this.stepFrame(code >> 3);
@@ -3108,8 +3238,10 @@
         document.getElementById('screen-game-over').classList.add('hidden');
       }
 
+      // With gravity on, the ship starts above the planet (to its right when the view is
+      // upright), pointing away from it, so thrust takes it clear
       spawnPoint() {
-        return { x: this.width / 2, y: this.gravityMode ? this.planet.y + 165 : this.height / 2 };
+        return { x: this.width / 2, y: this.gravityMode ? this.planet.y - 165 : this.height / 2 };
       }
 
       // The arcade original respawns only when no asteroid is within 1/8 of the screen
@@ -3411,8 +3543,10 @@
       // A short message that floats up the screen and fades. It's placed at a point in
       // the world (x, y), or with screen: true at a point on the screen; rise lifts it
       // above that point to start with. Either way it's drawn upright.
-      addFloatingText(x, y, text, color = '#fbbf24', { rise = 0, screen = false } = {}) {
-        this.floatingTexts.push({ x, y, text, color, rise, screen, life: 0.8, maxLife: 0.8 });
+      // (a text with a tag replaces any still showing with the same tag)
+      addFloatingText(x, y, text, color = '#fbbf24', { rise = 0, screen = false, tag = null } = {}) {
+        if (tag) this.floatingTexts = this.floatingTexts.filter((t) => t.tag !== tag);
+        this.floatingTexts.push({ x, y, text, color, rise, screen, tag, life: 0.8, maxLife: 0.8 });
       }
 
       // The playfield as it's seen: the world is always 1000 x 750, but on a narrow screen
@@ -3472,9 +3606,11 @@
         this.saveRecording();
 
         const isNewHigh = this.score > this.highScore;
-        // A score that makes the Hall of Fame goes on it at once, under the last initials
-        // entered (or YOU), and the player is asked for theirs (askInitials)
-        const board = loadLeaderboard();
+        // A score that makes the Hall of Fame (the list for this game's gravity) goes on it
+        // at once, under the last initials entered (or YOU), and the player is asked for
+        // theirs (askInitials)
+        const mode = this.newEntryMode = this.scoreMode;
+        const board = loadLeaderboard(mode);
         const madeBoard = this.score > 0 &&
           (board.length < LEADERBOARD_SIZE || this.score > board[LEADERBOARD_SIZE - 1].score);
         this.newEntryId = null;
@@ -3482,13 +3618,13 @@
           const entry = { name: loadInitials() || 'YOU', score: this.score, wave: this.wave, id: Date.now() };
           board.push(entry);
           board.sort((a, b) => b.score - a.score);
-          saveLeaderboard(board.slice(0, LEADERBOARD_SIZE));
+          saveLeaderboard(board.slice(0, LEADERBOARD_SIZE), mode);
           this.newEntryId = entry.id;
         }
 
         if (isNewHigh) {
           this.highScore = this.score;
-          saveHighScore(this.highScore);
+          saveHighScore(this.highScore, mode);
           document.getElementById('new-high-score-banner').classList.remove('hidden');
         } else {
           document.getElementById('new-high-score-banner').classList.add('hidden');
@@ -3531,12 +3667,13 @@
         const name = cleanInitials(input.value);
         if (!name || this.newEntryId === null) return;
         saveInitials(name);
-        const board = loadLeaderboard();
+        // (the list the game went on, even if gravity has been changed since)
+        const mode = this.newEntryMode || 0, board = loadLeaderboard(mode), best = this.bestGames[mode];
         const entry = board.find((e) => e.id === this.newEntryId);
-        if (entry) { entry.name = name; saveLeaderboard(board); }
-        if (this.bestGame && this.bestGame === this.lastGame && this.bestGame.score === (entry && entry.score)) {
-          this.bestGame.name = name;
-          saveReplay(REPLAY_KEYS.best, this.bestGame);
+        if (entry) { entry.name = name; saveLeaderboard(board, mode); }
+        if (best && best === this.lastGame && best.score === (entry && entry.score)) {
+          best.name = name;
+          saveReplay(BEST_REPLAY_KEYS[mode], best);
           this.updateReplayButtons();
         }
       }
@@ -3980,12 +4117,12 @@
           if (this.rotated) ctx.rotate(-Math.PI / 2);
 
           for (let r = 1; r <= cfg.rings; r++) {
-            const ringRadius = this.planet.radius + r * 44 + Math.sin(this.planet.pulse + r * 0.4) * (this.gravityLevel + 1);
+            const ringRadius = this.planet.radius + r * 44 + Math.sin(this.planet.pulse + r * 0.4) * 2;
             ctx.beginPath();
             ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
             ctx.strokeStyle = cfg.ringColor;
-            ctx.lineWidth = this.gravityLevel === 3 ? 1.5 : 1;
-            ctx.setLineDash(this.gravityLevel === 3 ? [6, 8] : [6, 14]);
+            ctx.lineWidth = 1;
+            ctx.setLineDash([6, 14]);
             ctx.stroke();
             ctx.setLineDash([]);
           }
@@ -4083,7 +4220,8 @@
           ctx.strokeStyle = theme.primary;
           ctx.shadowColor = theme.glow;
 
-          const isShieldBlink = this.ship.invulnerable > 0 && Math.floor(Date.now() / 100) % 2 === 0;
+          // (blinking only while the game runs, as with the drawn ship above)
+          const isShieldBlink = this.ship.invulnerable > 0 && this.state === 'PLAYING' && Math.floor(Date.now() / 100) % 2 === 0;
 
           if (!isShieldBlink) {
             // As in the arcade original: a flat crossbar at the back, set forward of the
@@ -4363,7 +4501,7 @@
             '',
             `playfield ${Math.round(f.width)}x${Math.round(f.height)} ${g && g.rotated ? '3:4' : '4:3'}, buttons ${buttons}`
               + `${g && g.splitHeader ? ', header beside' : ''}${g && g.noFooter ? ', no footer' : ''}`,
-            `pause menu (${g ? g.layoutOrientation() : '?'} choices): buttons ${g ? g.buttonSize : '?'}, place ${g ? g.buttonPlace : '?'}, orientation ${g ? g.viewShape : '?'}`,
+            `pause menu (${g ? g.layoutOrientation() : '?'} choices): shape ${g ? g.viewShape : '?'}, buttons ${g ? g.buttonSize : '?'}, place ${g ? g.buttonPlace : '?'}`,
             '',
             ...layoutTable(g),
             '',
@@ -4411,9 +4549,9 @@
           show();
           buttons.appendChild(b);
         };
+        choice('viewShape', VIEW_SHAPES, 'Shape');
         choice('buttonSize', BUTTON_SIZES, 'Buttons');
         choice('buttonPlace', BUTTON_PLACES, 'Place');
-        choice('viewShape', VIEW_SHAPES, 'Orientation');
 
         // Live frame rates, updated every second while the panel is open: how often the
         // screen refreshes (frames the browser offers), and how often the game draws

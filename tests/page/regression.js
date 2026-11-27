@@ -39,7 +39,7 @@ window.addEventListener('load', () => setTimeout(() => {
     g.togglePause();
 
     // Asteroid swallowed by the planet: no fragments, costs its points, score floors at 0
-    if (!g.gravityMode) g.toggleGravity();
+    g.setGravityLevel(1, false);
     const sentinel = g.createAsteroid(50, 50, 'small'); sentinel.vx = sentinel.vy = 0;
     g.asteroids = [g.createAsteroid(g.planet.x, g.planet.y, 'large'), sentinel];
     g.ufo = null; g.ufoSpawnTimer = 99;
@@ -57,7 +57,7 @@ window.addEventListener('load', () => setTimeout(() => {
     // Planet animation uses elapsed time and freezes while paused
     const r0 = g.planet.rot; g.loop(g.lastTime + 1000 / 30);
     const r1 = g.planet.rot; g.lastTime = performance.now();
-    const expected = ARCADE_FPS / 30 * [0, 0.012, 0.02, 0.03][g.gravityLevel];
+    const expected = ARCADE_FPS / 30 * [0, 0.012][g.gravityLevel];
     ok('planet rot uses elapsed time', Math.abs((r1 - r0) - expected) < 1e-6);
     g.togglePause(); const r2 = g.planet.rot; g.loop(g.lastTime + 16);
     ok('planet frozen while paused', g.planet.rot === r2);
@@ -147,7 +147,7 @@ window.addEventListener('load', () => setTimeout(() => {
 
     // Losing the last ship to the planet (gravity mode) mid-update didn't crash the game
     const gravity = g.gravityLevel;
-    g.setGravityLevel(2, false);
+    g.setGravityLevel(1, false);
     g.startGame(); g.ufo = null; g.asteroids = []; g.lives = 1;
     g.ship.x = g.planet.x; g.ship.y = g.planet.y - g.planet.radius - 5; g.ship.vx = g.ship.vy = 0;
     let crashError = null;
@@ -157,7 +157,10 @@ window.addEventListener('load', () => setTimeout(() => {
     g.setGravityLevel(gravity, false);
     g.togglePause();
 
-    // Browser shortcuts and held toggle keys
+    // Browser shortcuts and held toggle keys (gravity is set between games: here on the
+    // start screen)
+    const stateBefore = g.state;
+    g.state = 'START';
     const gravityBefore = g.gravityLevel, themeBefore = currentThemeIdx;
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyG', key: 'g', ctrlKey: true }));
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC', key: 'c', metaKey: true }));
@@ -167,6 +170,15 @@ window.addEventListener('load', () => setTimeout(() => {
     key('keydown', 'KeyG', 'g', true); key('keydown', 'KeyG', 'g', true);
     ok('holding G changes gravity once', gravityPressed !== gravityBefore && g.gravityLevel === gravityPressed);
     g.setGravityLevel(gravityBefore, false); g.persistSettings();
+    // ...but not during a game, playing or paused: its scores go on the list for the
+    // gravity it started with
+    for (const state of ['PLAYING', 'PAUSED']) {
+      g.state = state;
+      key('keydown', 'KeyG', 'g'); key('keyup', 'KeyG', 'g');
+      g.toggleGravity();
+      ok(`G does nothing during a game (${state.toLowerCase()})`, g.gravityLevel === gravityBefore);
+    }
+    g.state = stateBefore;
 
     // A slow frame (the 0.1 s cap) is simulated in small steps, so a bullet can't jump
     // past a small asteroid

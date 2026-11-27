@@ -12,9 +12,9 @@ window.addEventListener('load', () => setTimeout(() => {
       ok('no palette saved until the player picks one', before && before.palette === undefined);
       g.setTheme(0); g.cycleTheme(); g.cycleTheme(); // Nebula
       g.toggleAudio();                      // muted
-      g.toggleGravity(); g.toggleGravity(); // MED
+      g.toggleGravity();                    // on (between games, as now)
       const saved = JSON.parse(localStorage.getItem('asteroids_settings'));
-      ok('settings saved', saved && saved.palette === 'Nebula' && saved.muted === true && saved.gravity === 2);
+      ok('settings saved', saved && saved.palette === 'Nebula' && saved.muted === true && saved.gravity === 1);
     } else {
       ok('palette restored (Nebula)', document.getElementById('theme-name').textContent === 'Nebula');
       ok('a restored palette counts as picked', g.paletteChosen === true);
@@ -30,9 +30,13 @@ window.addEventListener('load', () => setTimeout(() => {
       ok('unknown saved palette falls back to Classic', fromSaved('Plaid') === 'Classic' && !g.paletteChosen);
       ok('CRT overlay removed', !document.getElementById('overlay-scanlines') && !document.getElementById('btn-scanlines'));
       ok('mute restored', g.sound.muted && document.getElementById('audio-icon').textContent === '🔇');
-      ok('gravity restored (MED)', g.gravityLevel === 2 && g.gravityMode && g.planet.mass === 980000
-         && document.getElementById('gravity-status').textContent === 'MED');
+      ok('gravity restored (on)', g.gravityLevel === 1 && g.gravityMode && g.planet.mass === 450000
+         && [...document.querySelectorAll('[data-gravity-status]')].every((s) => s.textContent === 'ON'));
       ok('no gravity announcement on load', g.floatingTexts.length === 0);
+      // Gravity saved when it had levels (Low, Med, High) is on
+      localStorage.setItem('asteroids_settings', JSON.stringify({ ...loadSettings(), gravity: 3 }));
+      g.applySavedSettings();
+      ok('gravity saved as High (an older version) is on', g.gravityLevel === 1 && g.planet.mass === 450000);
       // Corrupt saved settings must not break startup
       localStorage.setItem('asteroids_settings', '{bad json');
       ok('corrupt settings tolerated', Object.keys(loadSettings()).length === 0);

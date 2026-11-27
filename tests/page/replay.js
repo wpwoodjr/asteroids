@@ -42,15 +42,16 @@ window.addEventListener('load', () => setTimeout(() => {
   try {
     if (phase === 'play') {
       try { localStorage.clear(); } catch (e) {}
-      g.lastGame = g.bestGame = null;
-      g.setGravityLevel(0, false);
+      g.lastGame = null; g.bestGames = [null, null];
+      // (a game with gravity, so the replay has the planet's pull to repeat)
+      g.setGravityLevel(1, false);
       // The same game every run (a new game's seed comes from Math.random)
       const mathRandom = Math.random;
       Math.random = () => 0.11;
       g.startGame();
       Math.random = mathRandom;
       const held = { ArrowLeft: false, ArrowRight: false, ArrowUp: false };
-      let frames = 0, pauses = 0, gravityChanges = 0, saucers = 0;
+      let frames = 0, pauses = 0, gravityTries = 0, gravityChanged = false, saucers = 0;
       const spawnUfo = g.spawnUfo;
       g.spawnUfo = function () { saucers++; return spawnUfo.call(this); };
       while (g.state !== 'GAMEOVER' && frames < 200000) {
@@ -80,11 +81,11 @@ window.addEventListener('load', () => setTimeout(() => {
         if (aligned && pick() < 0.3) press('Space', ' ');
         if (pick() < 0.0003) press('ShiftLeft', 'Shift');
         if (pick() < 0.002 && g.state === 'PLAYING') { press('KeyP', 'p'); press('KeyP', 'p'); pauses++; }
-        // Gravity: low for a while, then changed while paused (med, high, back off)
-        if (frames === 400) { press('KeyG', 'g'); gravityChanges++; }
+        // Gravity can't be changed during a game, playing or paused
+        if (frames === 400) { press('KeyG', 'g'); gravityTries++; gravityChanged ||= g.gravityLevel !== 1; }
         if (frames === 1000) {
           press('KeyP', 'p'); pauses++;
-          for (let i = 0; i < 3; i++) { press('KeyG', 'g'); gravityChanges++; }
+          press('KeyG', 'g'); gravityTries++; gravityChanged ||= g.gravityLevel !== 1;
           press('KeyP', 'p');
         }
         if (frames === 300 || frames === 1300) press('ShiftLeft', 'Shift');
@@ -92,16 +93,19 @@ window.addEventListener('load', () => setTimeout(() => {
         const r = pick();
         frame(r < 0.01 ? 90 + pick() * 200 : r < 0.2 ? 8.3 : 16.7 + (pick() - 0.5) * 3);
       }
-      ok('a whole game was played', g.state === 'GAMEOVER', `${frames} frames, ${pauses} pauses, ${gravityChanges} gravity changes, ${saucers} saucers, wave ${g.wave}, score ${g.score}`);
+      ok('a whole game was played', g.state === 'GAMEOVER', `${frames} frames, ${pauses} pauses, ${saucers} saucers, wave ${g.wave}, score ${g.score}`);
       ok('long enough to meet saucers', saucers > 0);
+      ok('G did nothing during the game', gravityTries === 2 && !gravityChanged);
       const original = snapshot();
       const rec = g.lastGame;
       const events = rec.events.map((e) => e % 8);
       ok('the game was recorded', rec && rec.frames.length > 1000 && rec.score === g.score && rec.wave === g.wave,
         rec && `${rec.frames.length} frames, ${rec.events.length} events`);
-      ok('shots, hyperspace and gravity changes are in it', events.includes(0) && events.includes(1) && events.some((e) => e >= 2));
+      ok('shots and hyperspace jumps are in it (and nothing else)', events.includes(0) && events.includes(1) && events.every((e) => e < 2));
+      ok('it says gravity was on', rec.gravity === 1);
       ok('it was saved', JSON.stringify(loadReplay(REPLAY_KEYS.last)) === JSON.stringify(rec));
-      ok('a scoring game is saved as the best game', rec.score === 0 || JSON.stringify(loadReplay(REPLAY_KEYS.best)) === JSON.stringify(rec));
+      ok('a scoring game is saved as the best game with gravity (and not without)', rec.score === 0 ||
+        (JSON.stringify(loadReplay(REPLAY_KEYS.bestGravity)) === JSON.stringify(rec) && !loadReplay(REPLAY_KEYS.best)));
       ok('the Replay button shows', !document.getElementById('btn-replay-last').classList.contains('hidden'));
       const gravityBefore = g.gravityLevel;
       const settingsBefore = localStorage.getItem('asteroids_settings');
@@ -148,6 +152,8 @@ window.addEventListener('load', () => setTimeout(() => {
 
       // Smooth playback: record 20 s at 60 fps with the usual wobble in frame times, then
       // play it back on screens of different rates and count recorded frames per refresh
+      // (without gravity: no planet for the ship to fall into before the 20 s are up)
+      g.setGravityLevel(0, false);
       g.startGame();
       for (let i = 0; i < 1200; i++) {
         if (i % 25 === 0) press('Space', ' ');
@@ -200,8 +206,10 @@ window.addEventListener('load', () => setTimeout(() => {
       ok('replays from another version are dropped', loadReplay('replay-test') === null);
       localStorage.removeItem('replay-test');
 
+      g.setGravityLevel(1, false);
+      g.scoresTab = 1; // (the Hall of Fame's gravity list)
       g.resetScores();
-      ok('clearing the scores drops the best game', !g.bestGame && !loadReplay(REPLAY_KEYS.best) &&
+      ok('clearing the scores drops the best game', !g.bestGame && !loadReplay(REPLAY_KEYS.bestGravity) &&
         document.getElementById('btn-start-replay-best').classList.contains('hidden'));
     }
   } catch (e) { out.push('ERROR ' + e.stack); }

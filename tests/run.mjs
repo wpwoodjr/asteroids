@@ -123,6 +123,7 @@ const TESTS = {
   settings: pageTest('settings.js', ['set', 'check']),
   replay: pageTest('replay.js', ['play', 'check']),
   initials: pageTest('initials.js'),
+  scores: pageTest('scores.js'),
   palettes: pageTest('palettes.js'),
   styles: pageTest('styles.js'),
   fullscreen: async (ctx) => (await import('./cdp/fullscreen.mjs')).default(ctx),

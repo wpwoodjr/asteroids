@@ -64,7 +64,7 @@ window.addEventListener('load', () => setTimeout(() => {
     g.keys.thrust = true; g.ship.invulnerable = 1;
     let rolls = 0, drawError = null;
     const gameRandom = g.random, fxRandom = g.fxRandom, gravity = g.gravityLevel;
-    for (const level of [0, 1, 2, 3]) {
+    for (const level of [0, 1]) {
       g.setGravityLevel(level, false);
       g.random = () => { rolls++; return gameRandom(); };
       g.fxRandom = () => { rolls++; return fxRandom(); };
